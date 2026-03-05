@@ -1,0 +1,26 @@
+{
+    "expo": {
+        "name": "Sparkles",
+        "slug": "sparkles",
+        "version": "1.0.0",
+        "scheme": "sparkles",
+        "newArchEnabled": true,
+        "userInterfaceStyle": "automatic",
+        "ios": {
+            "supportsTablet": true
+        },
+        "android": {
+            "adaptiveIcon": {
+                "backgroundColor": "#ffffff"
+            }
+        },
+        "plugins": [
+            "expo-router",
+            "expo-document-picker",
+            "expo-file-system"
+        ],
+        "experiments": {
+            "typedRoutes": true
+        }
+    }
+}
