@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Button, Text } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Button, Text, FlatList, TouchableOpacity } from 'react-native';
 import { IdeaInput, PaperCard, ConfirmModal } from '@sparkles/ui';
-import { saveNewIdea } from '@/services/ideaService';
+import { saveNewIdea, fetchAllIdeas } from '@/services/ideaService';
+import { Idea } from '@sparkles/core';
 import { useRouter } from 'expo-router';
 
 export default function InboxScreen() {
     const [text, setText] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [lastSavedId, setLastSavedId] = useState<string | null>(null);
+    const [ideas, setIdeas] = useState<Idea[]>([]);
     const router = useRouter();
+
+    const loadIdeas = async () => {
+        const data = await fetchAllIdeas();
+        setIdeas(data);
+    };
+
+    useEffect(() => {
+        loadIdeas();
+    }, []);
 
     const handleSave = async () => {
         if (!text.trim()) return;
@@ -16,6 +27,7 @@ export default function InboxScreen() {
         setLastSavedId(idea.id);
         setText('');
         setShowModal(true);
+        loadIdeas(); // Refresh list after saving
     };
 
     const handleDevelopFurther = () => {
@@ -44,6 +56,25 @@ export default function InboxScreen() {
                 </View>
             </PaperCard>
 
+            <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>Saved Ideas</Text>
+                <Button title="Refresh" onPress={loadIdeas} />
+            </View>
+
+            <FlatList
+                data={ideas}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.listContainer}
+                renderItem={({ item }) => (
+                    <TouchableOpacity
+                        style={styles.listItem}
+                        onPress={() => router.push(`/develop/${item.id}`)}
+                    >
+                        <Text style={styles.listText} numberOfLines={2}>{item.text || 'Empty Idea'}</Text>
+                    </TouchableOpacity>
+                )}
+            />
+
             <ConfirmModal
                 visible={showModal}
                 title="Idea Saved!"
@@ -57,7 +88,12 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16, backgroundColor: '#f5f5f5', justifyContent: 'center' },
-    card: { paddingBottom: 8 },
-    actions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }
+    container: { flex: 1, padding: 16, backgroundColor: '#f5f5f5' },
+    card: { paddingBottom: 8, marginTop: 40 },
+    actions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+    listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 10 },
+    listTitle: { fontSize: 18, fontWeight: 'bold' },
+    listContainer: { paddingBottom: 20 },
+    listItem: { backgroundColor: '#fff', padding: 16, marginBottom: 12, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+    listText: { color: '#333', fontSize: 16 }
 });

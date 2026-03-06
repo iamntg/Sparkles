@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Dimensions, Text } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { fetchAllIdeas } from '@/services/ideaService';
 import { Idea } from '@sparkles/core';
 import { useRouter } from 'expo-router';
