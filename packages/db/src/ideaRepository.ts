@@ -41,3 +41,8 @@ export async function updateIdea(idea: Idea): Promise<void> {
     ]
   );
 }
+
+export async function deleteIdea(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`UPDATE ideas SET deletedAt = ? WHERE id = ?`, [Date.now(), id]);
+}

@@ -18,3 +18,18 @@ export async function addLink(fromIdeaId: string, toIdeaId: string, type: string
 export async function fetchLinksForIdea(ideaId: string): Promise<Link[]> {
     return getLinksForIdea(ideaId);
 }
+
+export async function fetchAllLinks(): Promise<Link[]> {
+    const { getAllLinks } = require('@sparkles/db');
+    return getAllLinks();
+}
+
+export async function removeLink(id: string): Promise<void> {
+    const { deleteLink } = require('@sparkles/db');
+    return deleteLink(id);
+}
+
+export async function removeLinksByIdea(ideaId: string): Promise<void> {
+    const { deleteLinksByIdea } = require('@sparkles/db');
+    return deleteLinksByIdea(ideaId);
+}
