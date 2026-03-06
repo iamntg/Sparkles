@@ -8,17 +8,19 @@ type ConfirmModalProps = {
     onCancel: () => void;
     confirmText?: string;
     cancelText?: string;
+    children?: React.ReactNode;
 };
 
 export function ConfirmModal({
     visible, title, onConfirm, onCancel,
-    confirmText = "Confirm", cancelText = "Cancel"
+    confirmText = "Confirm", cancelText = "Cancel", children
 }: ConfirmModalProps) {
     return (
         <Modal visible={visible} transparent animationType="fade">
             <View style={styles.overlay}>
                 <View style={styles.dialog}>
                     <Text style={styles.title}>{title}</Text>
+                    {children}
                     <View style={styles.row}>
                         <Pressable style={[styles.btn, styles.cancelBtn]} onPress={onCancel}>
                             <Text style={styles.cancelText}>{cancelText}</Text>

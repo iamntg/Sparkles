@@ -29,3 +29,12 @@ export function generateLocalReviewSession(ideas: Idea[]): ReviewSession {
         resultJson: JSON.stringify(clusters)
     };
 }
+export function suggestLinks(currentIdea: Idea, allIdeas: Idea[]): String[] {
+    const clusters = clusterIdeas(allIdeas);
+    const myCluster = clusters.find(c => c.ideaIds.includes(currentIdea.id));
+
+    if (!myCluster) return [];
+
+    // Return all other ideas in the same cluster
+    return myCluster.ideaIds.filter(id => id !== currentIdea.id);
+}
