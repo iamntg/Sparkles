@@ -17,7 +17,13 @@
         "plugins": [
             "expo-router",
             "expo-document-picker",
-            "expo-file-system"
+            "expo-file-system",
+            [
+              "expo-audio",
+              {
+                "microphonePermission": "Allow Sparkles to access your microphone to record ideas."
+              }
+            ]
         ],
         "experiments": {
             "typedRoutes": true
