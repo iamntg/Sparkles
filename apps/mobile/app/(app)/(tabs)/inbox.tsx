@@ -151,7 +151,10 @@ export default function InboxScreen() {
 
             <View style={styles.listHeader}>
                 <Text style={styles.listTitle}>Saved Ideas</Text>
-                <Button title="Refresh" onPress={loadIdeas} />
+                <View style={styles.headerActions}>
+                    <Button title="Cluster Ideas" onPress={() => router.push('/clusters')} color="#9b59b6" />
+                    <Button title="Refresh" onPress={loadIdeas} />
+                </View>
             </View>
 
             <FlatList
@@ -185,6 +188,7 @@ const styles = StyleSheet.create({
     card: { paddingBottom: 8, marginTop: 40 },
     actions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
     listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 10 },
+    headerActions: { flexDirection: 'row', gap: 10 },
     listTitle: { fontSize: 18, fontWeight: 'bold' },
     listContainer: { paddingBottom: 20 },
     listItem: { backgroundColor: '#fff', padding: 16, marginBottom: 12, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },

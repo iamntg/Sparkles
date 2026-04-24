@@ -8,7 +8,8 @@
         "lint": "eslint \"src/**/*.ts*\""
     },
     "dependencies": {
-        "@sparkles/core": "workspace:*"
+        "@sparkles/core": "workspace:*",
+        "openai": "^6.34.0"
     },
     "devDependencies": {
         "typescript": "^5.4.5"
