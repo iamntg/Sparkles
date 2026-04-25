@@ -50,6 +50,14 @@ export async function updateIdea(idea: Idea): Promise<void> {
     }
 }
 
+export async function upsertIdea(idea: Idea): Promise<void> {
+    const ideas = getStorage();
+    // Filter out ANY existing records with this ID (cleaning up potential duplicates)
+    const filtered = ideas.filter(i => i.id !== idea.id);
+    filtered.push(idea);
+    setStorage(filtered);
+}
+
 export async function deleteIdea(id: string): Promise<void> {
     const ideas = getStorage();
     const index = ideas.findIndex(i => i.id === id);

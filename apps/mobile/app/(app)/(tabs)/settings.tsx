@@ -1,26 +1,44 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text, Switch, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, StyleSheet, Text, Switch, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SectionHeader, Theme } from '@sparkles/ui';
-import { createVaultBackup, restoreVaultBackup } from '@/services/vaultService';
-import { getAllIdeas } from '@sparkles/db';
+import { googleAuthService } from '@/services/googleAuthService';
+import { backupService } from '@/services/backupService';
 
 export default function SettingsScreen() {
     const [aiReviewEnabled, setAiReviewEnabled] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const ensureAuth = async () => {
+        if (!googleAuthService.isAuthenticated()) {
+            await googleAuthService.login();
+        }
+    };
 
     const handleBackup = async () => {
+        setIsProcessing(true);
         try {
-            const ideas = await getAllIdeas();
-            const vaultData = JSON.stringify({ ideas });
-            const path = await createVaultBackup(vaultData, "mock_passphrase_for_now");
-            Alert.alert('Backup Created', `Your ideas have been secured at:\n${path}`);
+            await ensureAuth();
+            await backupService.backup();
+            Alert.alert('Success', 'Backup uploaded to Google Drive!');
         } catch (e: any) {
             Alert.alert('Backup Error', e.message);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
     const handleRestore = async () => {
-        Alert.alert('Coming Soon', 'Restore from file is not fully implemented in this preview.');
+        setIsProcessing(true);
+        try {
+            await ensureAuth();
+            await backupService.restore();
+            Alert.alert('Success', 'Data restored from Google Drive!');
+        } catch (e: any) {
+            Alert.alert('Restore Error', e.message);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     return (
@@ -34,6 +52,7 @@ export default function SettingsScreen() {
                         <Text style={styles.label}>AI Review</Text>
                     </View>
                     <Switch
+                        disabled
                         value={aiReviewEnabled}
                         onValueChange={setAiReviewEnabled}
                         trackColor={{ false: "#ddd", true: Theme.colors.primary }}
@@ -46,14 +65,40 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Vault</Text>
-                <TouchableOpacity style={styles.button} onPress={handleBackup}>
-                    <Ionicons name="shield-checkmark-outline" size={20} color={Theme.colors.surface} />
-                    <Text style={styles.buttonText}>Backup Now</Text>
+                <Text style={styles.sectionTitle}>Cloud Backup (Google Drive)</Text>
+
+                {googleAuthService.isAuthenticated() && (
+                    <Text style={styles.authInfo}>Logged in as {googleAuthService.getUser()?.email}</Text>
+                )}
+
+                <TouchableOpacity
+                    style={[styles.button, isProcessing && styles.disabledButton]}
+                    onPress={handleBackup}
+                    disabled={isProcessing}
+                >
+                    {isProcessing ? (
+                        <ActivityIndicator color={Theme.colors.surface} />
+                    ) : (
+                        <>
+                            <Ionicons name="cloud-upload-outline" size={20} color={Theme.colors.surface} />
+                            <Text style={styles.buttonText}>Backup Now</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleRestore}>
-                    <Ionicons name="download-outline" size={20} color={Theme.colors.primary} />
-                    <Text style={[styles.buttonText, styles.secondaryButtonText]}>Restore from File</Text>
+
+                <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, isProcessing && styles.disabledButton]}
+                    onPress={handleRestore}
+                    disabled={isProcessing}
+                >
+                    {isProcessing ? (
+                        <ActivityIndicator color={Theme.colors.primary} />
+                    ) : (
+                        <>
+                            <Ionicons name="cloud-download-outline" size={20} color={Theme.colors.primary} />
+                            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Restore from File</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
             </View>
         </View>
@@ -70,6 +115,7 @@ const styles = StyleSheet.create({
     label: { fontSize: 17, color: Theme.colors.text, fontWeight: '500' },
     subLabel: { fontSize: 14, color: Theme.colors.textMuted, marginTop: 4, marginLeft: 32 },
     divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
+    authInfo: { fontSize: 14, color: Theme.colors.primary, marginBottom: 12, fontWeight: '500' },
     button: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -80,6 +126,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         gap: 10
     },
+    disabledButton: { opacity: 0.6 },
     secondaryButton: { backgroundColor: Theme.colors.secondary },
     buttonText: { color: Theme.colors.surface, fontSize: 16, fontWeight: '600' },
     secondaryButtonText: { color: Theme.colors.primary }

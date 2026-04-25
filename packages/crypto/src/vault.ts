@@ -18,13 +18,13 @@ export async function deriveKeyFromPassphrase(passphrase: string, salt: string):
 }
 
 export async function encryptVault(data: string, key: string): Promise<string> {
-    // Mock encryption
-    return Buffer.from(data).toString('base64');
+    // Mock encryption using btoa (Base64) for web/mobile compatibility
+    return btoa(data);
 }
 
 export async function decryptVault(blob: string, passphrase: string): Promise<string> {
-    // Mock decryption
-    return Buffer.from(blob, 'base64').toString('utf8');
+    // Mock decryption using atob (Base64) for web/mobile compatibility
+    return atob(blob);
 }
 
 export async function createVaultBackup(data: string, passphrase: string): Promise<string> {
@@ -40,12 +40,23 @@ export async function createVaultBackup(data: string, passphrase: string): Promi
     };
 
     const vault = JSON.stringify({ manifest, payload: encrypted });
-    const backupPath = FileSystem.documentDirectory + 'sparkles_backup.json';
+
+    // On Web, documentDirectory is null/undefined.
+    const docDir = (FileSystem as any).documentDirectory;
+    if (!docDir) {
+        console.warn('Local file system not available on web. Skipping local write.');
+        return 'memory://sparkles_backup.json';
+    }
+
+    const backupPath = docDir + 'sparkles_backup.json';
     await FileSystem.writeAsStringAsync(backupPath, vault);
     return backupPath;
 }
 
 export async function restoreVaultBackup(filePath: string, passphrase: string): Promise<string> {
+    if (!(FileSystem as any).documentDirectory && !filePath.startsWith('memory://')) {
+        throw new Error('Local file system not available on web.');
+    }
     const vaultJson = await FileSystem.readAsStringAsync(filePath);
     const vault = JSON.parse(vaultJson);
     const decrypted = await decryptVault(vault.payload, passphrase);
