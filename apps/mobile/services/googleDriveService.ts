@@ -38,10 +38,9 @@ export const googleDriveService = {
     const existingFiles = await this.listBackupFiles(filename);
     const fileId = existingFiles.length > 0 ? existingFiles[0].id : null;
 
-    const metadata = {
-      name: filename,
-      parents: ['appDataFolder'],
-    };
+    const metadata = fileId 
+      ? { name: filename }
+      : { name: filename, parents: ['appDataFolder'] };
 
     const boundary = 'foo_bar_baz';
     const multipartBody = 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
@@ -6,7 +6,7 @@ import { saveNewIdea, fetchAllIdeas } from '@/services/ideaService';
 import { startRecording, stopRecording, playAudio, stopAudio } from '@/services/audioService';
 import { transcribeAudio } from '@/services/transcriptionService';
 import { Idea } from '@sparkles/core';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 export default function InboxScreen() {
     const [text, setText] = useState('');
@@ -19,14 +19,16 @@ export default function InboxScreen() {
     const [isPlaying, setIsPlaying] = useState(false);
     const router = useRouter();
 
-    const loadIdeas = async () => {
+    const loadIdeas = useCallback(async () => {
         const data = await fetchAllIdeas();
         setIdeas(data);
-    };
-
-    useEffect(() => {
-        loadIdeas();
     }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadIdeas();
+        }, [loadIdeas])
+    );
 
     const handleSave = async () => {
         if (!text.trim()) return;

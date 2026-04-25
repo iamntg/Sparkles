@@ -1,11 +1,16 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { runMigrations } from '@sparkles/db';
+import { googleAuthService } from '@/services/googleAuthService';
 
 export default function RootLayout() {
     useEffect(() => {
-        // Run DB migrations on app start
-        runMigrations().catch(console.error);
+        // Initialize services
+        const init = async () => {
+            await runMigrations().catch(console.error);
+            await googleAuthService.init().catch(console.error);
+        };
+        init();
     }, []);
 
     return (
