@@ -2,19 +2,21 @@ import { Idea, IdeaStatus } from '@sparkles/core';
 import { createIdea as dbCreateIdea, getAllIdeas, getIdea, updateIdea } from '@sparkles/db';
 import * as Crypto from 'expo-crypto';
 
-export async function saveNewIdea(text: string): Promise<Idea> {
+export async function saveNewIdea(text: string, opts?: { sourceType?: string; audioLocalPath?: string; transcriptStatus?: string }): Promise<Idea> {
     const id = `idea_${Date.now()}_${await generateRandomString()}`;
     const idea: Idea = {
         id,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        sourceType: 'text',
+        sourceType: opts?.sourceType || 'text',
         text,
-        title: text.split('\n')[0].substring(0, 50),
+        title: text ? text.split('\n')[0].substring(0, 50) : 'Voice Note',
         status: IdeaStatus.DRAFT,
         constellationX: Math.random() * 1000,
         constellationY: Math.random() * 1000,
-        constellationSeed: Math.random()
+        constellationSeed: Math.random(),
+        ...(opts?.audioLocalPath && { audioLocalPath: opts.audioLocalPath }),
+        ...(opts?.transcriptStatus && { transcriptStatus: opts.transcriptStatus })
     };
 
     await dbCreateIdea(idea);

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Button, Text, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Button, Text, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { IdeaInput, PaperCard, ConfirmModal } from '@sparkles/ui';
 import { saveNewIdea, fetchAllIdeas } from '@/services/ideaService';
+import { startRecording, stopRecording } from '@/services/audioService';
+import { transcribeAudio } from '@/services/transcriptionService';
 import { Idea } from '@sparkles/core';
 import { useRouter } from 'expo-router';
 
@@ -10,6 +12,8 @@ export default function InboxScreen() {
     const [showModal, setShowModal] = useState(false);
     const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const [ideas, setIdeas] = useState<Idea[]>([]);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isProcessingAudio, setIsProcessingAudio] = useState(false);
     const router = useRouter();
 
     const loadIdeas = async () => {
@@ -28,6 +32,43 @@ export default function InboxScreen() {
         setText('');
         setShowModal(true);
         loadIdeas(); // Refresh list after saving
+    };
+
+    const handleToggleRecording = async () => {
+        if (isRecording) {
+            setIsRecording(false);
+            setIsProcessingAudio(true);
+            try {
+                const uri = await stopRecording();
+                let transcribedText = '';
+                let status = 'DONE';
+                try {
+                    transcribedText = await transcribeAudio(uri);
+                } catch (e) {
+                    status = 'FAILED';
+                    Alert.alert('Transcription Failed', 'Could not transcribe the audio. Saving as empty idea.');
+                }
+                const idea = await saveNewIdea(transcribedText, {
+                    sourceType: 'audio',
+                    audioLocalPath: uri,
+                    transcriptStatus: status
+                });
+                setLastSavedId(idea.id);
+                setShowModal(true);
+                loadIdeas();
+            } catch (err) {
+                Alert.alert('Recording Failed', 'Failed to stop recording cleanly.');
+            } finally {
+                setIsProcessingAudio(false);
+            }
+        } else {
+            try {
+                await startRecording();
+                setIsRecording(true);
+            } catch (err) {
+                Alert.alert('Recording Failed', 'Ensure microphone permissions are granted.');
+            }
+        }
     };
 
     const handleDevelopFurther = () => {
@@ -50,9 +91,13 @@ export default function InboxScreen() {
                     onChangeText={setText}
                 />
                 <View style={styles.actions}>
-                    <Button title="Save Idea" onPress={handleSave} />
-                    {/* Mock Audio record button */}
-                    <Button title="🎤 Record" onPress={() => { }} color="#888" />
+                    <Button title="Save Idea" onPress={handleSave} disabled={isRecording || isProcessingAudio} />
+                    <Button 
+                        title={isRecording ? "Stop Recording" : (isProcessingAudio ? "Processing..." : "🎤 Record")} 
+                        onPress={handleToggleRecording} 
+                        color={isRecording ? "red" : "#888"} 
+                        disabled={isProcessingAudio}
+                    />
                 </View>
             </PaperCard>
 
