@@ -28,27 +28,9 @@ export default function InboxScreen() {
     }, []);
 
     const handleSave = async () => {
-        if (!text.trim() && !audioUri) return;
+        if (!text.trim()) return;
         setIsProcessingAudio(true);
-        let finalIdea;
-
-        if (audioUri) {
-            let transcribedText = '';
-            let status = 'DONE';
-            try {
-                transcribedText = await transcribeAudio(audioUri);
-            } catch (e) {
-                status = 'FAILED';
-                Alert.alert('Transcription Failed', 'Could not transcribe the audio. Saving as empty idea.');
-            }
-            finalIdea = await saveNewIdea(transcribedText, {
-                sourceType: 'audio',
-                audioLocalPath: audioUri,
-                transcriptStatus: status
-            });
-        } else {
-            finalIdea = await saveNewIdea(text);
-        }
+        const finalIdea = await saveNewIdea(text);
 
         setLastSavedId(finalIdea.id);
         setText('');
@@ -60,14 +42,37 @@ export default function InboxScreen() {
 
     const handleToggleRecording = async () => {
         if (isRecording) {
+            setIsRecording(false);
             try {
                 const uri = await stopRecording();
                 setAudioUri(uri);
+                
+                // Immediately transcribe and save
+                setIsProcessingAudio(true);
+                let transcribedText = '';
+                let status = 'DONE';
+                try {
+                    transcribedText = await transcribeAudio(uri);
+                } catch (e) {
+                    status = 'FAILED';
+                    Alert.alert('Transcription Failed', 'Could not transcribe the audio. Saving with failed status.');
+                }
+                
+                const finalIdea = await saveNewIdea(transcribedText, {
+                    sourceType: 'audio',
+                    audioLocalPath: uri,
+                    transcriptStatus: status
+                });
+                
+                setLastSavedId(finalIdea.id);
+                setAudioUri(null);
+                setShowModal(true);
+                loadIdeas();
             } catch (err) {
                 Alert.alert('Recording Failed', 'Failed to stop recording cleanly.');
                 setAudioUri(null);
             } finally {
-                setIsRecording(false);
+                setIsProcessingAudio(false);
             }
         } else {
             try {
@@ -113,7 +118,7 @@ export default function InboxScreen() {
     return (
         <View style={styles.container}>
             <PaperCard style={styles.card}>
-                {!isRecording && !audioUri && (
+                {!isRecording && !isProcessingAudio && !audioUri && (
                     <IdeaInput
                         placeholder="What's on your mind?"
                         value={text}
@@ -121,9 +126,10 @@ export default function InboxScreen() {
                     />
                 )}
                 {isRecording && <Text style={{marginVertical: 20, alignSelf:'center', color: 'red'}}>Recording Audio...</Text>}
-                {audioUri && <Text style={{marginVertical: 20, alignSelf:'center', color: 'green'}}>Audio Recorded!</Text>}
+                {isProcessingAudio && <Text style={{marginVertical: 20, alignSelf:'center', color: '#888'}}>Transcribing...</Text>}
+                
                 <View style={styles.actions}>
-                    {audioUri ? (
+                    {audioUri && !isProcessingAudio ? (
                         <>
                             <Button title={isPlaying ? "Playing..." : "Play"} onPress={handlePlayAudio} />
                             <Button title="Stop" onPress={handleStopAudio} />
@@ -131,11 +137,12 @@ export default function InboxScreen() {
                         </>
                     ) : (
                         <>
-                            <Button title="Save Idea" onPress={handleSave} disabled={(!text.trim() && !audioUri) || isRecording} />
+                            <Button title="Save Idea" onPress={handleSave} disabled={(!text.trim()) || isRecording || isProcessingAudio} />
                             <Button 
-                                title={isRecording ? "Stop Recording" : "🎤 Record"} 
+                                title={isRecording ? "Stop Recording" : (isProcessingAudio ? "Processing..." : "🎤 Record")} 
                                 onPress={handleToggleRecording} 
                                 color={isRecording ? "red" : "#888"} 
+                                disabled={isProcessingAudio}
                             />
                         </>
                     )}

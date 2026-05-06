@@ -94,3 +94,39 @@ Fields:
 - No waveform visualization
 - No background transcription
 - No retry mechanism for failed transcription
+
+-----
+
+## Audio Transcription Flow
+
+### User Flow
+1. User records audio
+2. Recording stops
+3. System begins transcription
+4. User sees a loading state ("Transcribing...")
+5. Transcription completes
+6. Idea is created using transcribed text
+7. Confirmation modal is shown
+
+### Inputs
+- Audio file URI
+
+### Outputs
+- Transcribed text
+- Idea saved with text + audio reference
+
+### Rules
+- Transcription starts only after recording stops
+- UI must indicate transcription in progress
+- Idea should not be created until transcription completes
+- Transcription logic must be replaceable (mock → real API)
+
+### Edge Cases
+- Transcription fails → save idea with empty text and FAILED status
+- Long audio → may delay UI response
+- Network failure (future API)
+
+### Gaps / TODOs
+- Currently mocked transcription
+- No retry mechanism
+- No background processing
