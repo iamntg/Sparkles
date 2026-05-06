@@ -41,6 +41,16 @@ export default function SettingsScreen() {
         }
     };
 
+    const handleSignOut = async () => {
+        Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign Out', style: 'destructive', onPress: async () => {
+                await googleAuthService.logout();
+                Alert.alert('Signed Out', 'You have been signed out from Google.');
+            }}
+        ]);
+    };
+
     return (
         <View style={styles.container}>
             <SectionHeader title="Settings" />
@@ -68,7 +78,12 @@ export default function SettingsScreen() {
                 <Text style={styles.sectionTitle}>Cloud Backup (Google Drive)</Text>
 
                 {googleAuthService.isAuthenticated() && (
-                    <Text style={styles.authInfo}>Logged in as {googleAuthService.getUser()?.email}</Text>
+                    <View style={styles.authInfoContainer}>
+                        <Text style={styles.authInfo}>Logged in as {googleAuthService.getUser()?.email}</Text>
+                        <TouchableOpacity onPress={handleSignOut}>
+                            <Text style={styles.signOutText}>Sign Out</Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
 
                 <TouchableOpacity
@@ -115,7 +130,9 @@ const styles = StyleSheet.create({
     label: { fontSize: 17, color: Theme.colors.text, fontWeight: '500' },
     subLabel: { fontSize: 14, color: Theme.colors.textMuted, marginTop: 4, marginLeft: 32 },
     divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
-    authInfo: { fontSize: 14, color: Theme.colors.primary, marginBottom: 12, fontWeight: '500' },
+    authInfoContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    authInfo: { fontSize: 14, color: Theme.colors.primary, fontWeight: '500' },
+    signOutText: { fontSize: 14, color: Theme.colors.error, fontWeight: '600' },
     button: {
         flexDirection: 'row',
         alignItems: 'center',

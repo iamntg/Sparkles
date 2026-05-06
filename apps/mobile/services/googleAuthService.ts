@@ -1,5 +1,6 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 // Constants for Google OAuth
@@ -14,6 +15,8 @@ const SCOPES = ['https://www.googleapis.com/auth/drive.appdata', 'openid', 'prof
 const CLIENT_ID_IOS = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS;
 const CLIENT_ID_ANDROID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID;
 const CLIENT_ID_WEB = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB;
+
+const SESSION_KEY = 'sparkles_google_session';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -34,7 +37,42 @@ let authState: AuthState = {
   user: null,
 };
 
+// Persistence helper
+const persistence = {
+  async save(state: AuthState) {
+    const data = JSON.stringify(state);
+    if (Platform.OS === 'web') {
+      localStorage.setItem(SESSION_KEY, data);
+    } else {
+      await SecureStore.setItemAsync(SESSION_KEY, data);
+    }
+  },
+  async load(): Promise<AuthState | null> {
+    const data = Platform.OS === 'web' 
+      ? localStorage.getItem(SESSION_KEY) 
+      : await SecureStore.getItemAsync(SESSION_KEY);
+    return data ? JSON.parse(data) : null;
+  },
+  async clear() {
+    if (Platform.OS === 'web') {
+      localStorage.removeItem(SESSION_KEY);
+    } else {
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+    }
+  }
+};
+
 export const googleAuthService = {
+  /**
+   * Initialize the service by loading any persisted session.
+   */
+  async init(): Promise<void> {
+    const saved = await persistence.load();
+    if (saved) {
+      authState = saved;
+    }
+  },
+
   async login(): Promise<AuthState> {
     const clientId = Platform.select({
       ios: CLIENT_ID_IOS,
@@ -69,6 +107,9 @@ export const googleAuthService = {
         console.error('Failed to fetch user info', error);
       }
 
+      // Persist the session
+      await persistence.save(authState);
+
       return authState;
     } else if (result.type === 'error' || result.type === 'cancel') {
       throw new Error(result.type === 'cancel' ? 'Login cancelled' : 'Login failed');
@@ -85,8 +126,9 @@ export const googleAuthService = {
     return authState.user;
   },
 
-  logout() {
+  async logout() {
     authState = { accessToken: null, user: null };
+    await persistence.clear();
   },
 
   isAuthenticated(): boolean {

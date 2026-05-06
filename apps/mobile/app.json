@@ -24,7 +24,8 @@
           "microphonePermission": "Allow Sparkles to access your microphone to record ideas."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

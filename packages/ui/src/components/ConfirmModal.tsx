@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
+import { Theme } from '../theme';
 
 type ConfirmModalProps = {
     visible: boolean;
@@ -36,13 +37,53 @@ export function ConfirmModal({
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-    dialog: { backgroundColor: 'white', padding: 20, borderRadius: 12, width: '80%' },
-    title: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-    row: { flexDirection: 'row', justifyContent: 'space-between' },
-    btn: { flex: 1, padding: 12, borderRadius: 8, marginHorizontal: 5, alignItems: 'center' },
-    cancelBtn: { backgroundColor: '#f0f0f0' },
-    submitBtn: { backgroundColor: '#3b82f6' },
-    cancelText: { color: '#333', fontWeight: 'bold' },
-    submitText: { color: 'white', fontWeight: 'bold' }
+    overlay: { 
+        flex: 1, 
+        backgroundColor: 'rgba(0,0,0,0.4)', 
+        justifyContent: 'center', 
+        alignItems: 'center' 
+    },
+    dialog: { 
+        width: '85%', 
+        backgroundColor: Theme.colors.surface, 
+        borderRadius: Theme.borderRadius.lg, 
+        padding: Theme.spacing.lg,
+        ...Theme.shadows.medium 
+    },
+    title: { 
+        fontSize: 20, 
+        fontWeight: '700', 
+        color: Theme.colors.text, 
+        marginBottom: Theme.spacing.md,
+        textAlign: 'center'
+    },
+    row: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        gap: Theme.spacing.md,
+        marginTop: Theme.spacing.lg 
+    },
+    btn: { 
+        flex: 1, 
+        paddingVertical: 12, 
+        borderRadius: Theme.borderRadius.md, 
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    cancelBtn: { 
+        backgroundColor: Theme.colors.secondary 
+    },
+    submitBtn: { 
+        backgroundColor: Theme.colors.primary 
+    },
+    cancelText: { 
+        color: Theme.colors.textSecondary, 
+        fontWeight: '600',
+        fontSize: 16
+    },
+    submitText: { 
+        color: Theme.colors.surface, 
+        fontWeight: '600',
+        fontSize: 16
+    }
 });
