@@ -1,6 +1,7 @@
-import { AudioModule, type AudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
+import { AudioModule, type AudioRecorder, type AudioPlayer, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, createAudioPlayer } from 'expo-audio';
 
 let recorder: AudioRecorder | null = null;
+let player: AudioPlayer | null = null;
 
 export async function startRecording(): Promise<void> {
     try {
@@ -29,7 +30,15 @@ export async function stopRecording(): Promise<string> {
             throw new Error('No recording active');
         }
         
-        await recorder.stop();
+        // Add a small delay to prevent "failed to stop cleanly" on Android if stopped too quickly
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+            await recorder.stop();
+        } catch (stopErr) {
+            console.warn('Warning during stop:', stopErr);
+        }
+
         const uri = recorder.uri;
         
         await setAudioModeAsync({
@@ -42,6 +51,34 @@ export async function stopRecording(): Promise<string> {
     } catch (err) {
         console.error('Failed to stop recording', err);
         recorder = null;
+        throw err;
+    }
+}
+
+
+export async function playAudio(uri: string): Promise<void> {
+    try {
+        if (player) {
+            player.pause();
+        }
+        await setAudioModeAsync({
+            playsInSilentMode: true,
+        });
+        player = createAudioPlayer(uri);
+        player.play();
+    } catch (err) {
+        console.error('Failed to play audio', err);
+        throw err;
+    }
+}
+
+export async function stopAudio(): Promise<void> {
+    try {
+        if (player) {
+            player.pause();
+        }
+    } catch (err) {
+        console.error('Failed to stop playback', err);
         throw err;
     }
 }

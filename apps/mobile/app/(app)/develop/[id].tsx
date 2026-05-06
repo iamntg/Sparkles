@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Idea } from '@sparkles/core';
 import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
 import { addLink, fetchLinksForIdea, removeLink, removeLinksByIdea } from '@/services/linkService';
+import { playAudio, stopAudio } from '@/services/audioService';
 import { IdeaInput, PaperCard, ConfirmModal } from '@sparkles/ui';
 import { suggestLinks } from '@sparkles/ai';
 import { Link } from '@sparkles/core';
@@ -25,6 +26,23 @@ export default function DevelopScreen() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
     const [ideaToUnlink, setIdeaToUnlink] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const toggleAudio = async () => {
+        if (!idea?.audioLocalPath) return;
+        
+        try {
+            if (isPlaying) {
+                await stopAudio();
+                setIsPlaying(false);
+            } else {
+                await playAudio(idea.audioLocalPath);
+                setIsPlaying(true);
+            }
+        } catch (err) {
+            Alert.alert("Error", "Failed to play audio");
+        }
+    };
 
 
     const load = async () => {
@@ -176,7 +194,18 @@ export default function DevelopScreen() {
                 </Pressable>
             </View>
 
-            <Text style={styles.label}>Main Idea</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.label}>Main Idea</Text>
+                {idea.audioLocalPath && (
+                    <Pressable onPress={toggleAudio} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+                        <Ionicons name={isPlaying ? "stop-circle-outline" : "play-circle-outline"} size={20} color="#3b82f6" />
+                        <Text style={{ color: '#3b82f6', marginLeft: 4, fontWeight: '500' }}>
+                            {isPlaying ? "Stop Audio" : "Play Audio"}
+                        </Text>
+                    </Pressable>
+                )}
+            </View>
+
             <PaperCard>
                 <IdeaInput
                     value={text}
