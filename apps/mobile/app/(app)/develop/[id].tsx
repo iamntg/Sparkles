@@ -148,20 +148,35 @@ export default function DevelopScreen() {
 
         const all = await fetchAllIdeas();
         const existingLinks = await fetchLinksForIdea(idea.id);
+        const existingLinkedIds = existingLinks.map(l => l.fromIdeaId === idea.id ? l.toIdeaId : l.fromIdeaId);
+        
+        // Get suggested IDs from the improved AI service
         const suggestionIds = suggestLinks(idea, all);
 
-        const suggestions = all.filter(i =>
-            suggestionIds.includes(i.id) &&
-            i.id !== idea.id &&
-            !existingLinks.some(l => l.fromIdeaId === i.id || l.toIdeaId === i.id)
+        // Filter out current idea and already linked ideas
+        const availableIdeas = all.filter(i => 
+            i.id !== idea.id && 
+            !existingLinkedIds.includes(i.id)
         );
 
-        if (suggestions.length === 0) {
-            Alert.alert('Info', 'No new suggestions found based on local clustering.');
+        // Sort: Suggested ideas first, then the rest by recency
+        const sortedSuggestions = availableIdeas.sort((a, b) => {
+            const indexA = suggestionIds.indexOf(a.id);
+            const indexB = suggestionIds.indexOf(b.id);
+            
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            
+            return b.updatedAt - a.updatedAt;
+        });
+
+        if (sortedSuggestions.length === 0) {
+            Alert.alert('Info', 'No other ideas found to link.');
             return;
         }
 
-        setSuggestedIdeas(suggestions);
+        setSuggestedIdeas(sortedSuggestions);
         setShowSuggestions(true);
     };
 
@@ -248,7 +263,7 @@ export default function DevelopScreen() {
             <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionButton} onPress={handleSuggestLinks}>
                     <Ionicons name="git-network-outline" size={20} color="#9b59b6" />
-                    <Text style={styles.actionButtonText}>Suggest Links</Text>
+                    <Text style={styles.actionButtonText}>Link another</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: '#f0f0f0' }]}
@@ -261,7 +276,7 @@ export default function DevelopScreen() {
 
             <ConfirmModal
                 visible={showSuggestions}
-                title="Suggested Links"
+                title="Link another idea"
                 onConfirm={() => {
                     if (selectedSuggestion) handleConfirmLink();
                     else Alert.alert('Warning', 'Please select an idea first');
