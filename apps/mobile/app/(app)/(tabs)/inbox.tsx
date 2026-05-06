@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Button, Text, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { IdeaInput, PaperCard, ConfirmModal } from '@sparkles/ui';
+import { View, StyleSheet, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
 import { saveNewIdea, fetchAllIdeas } from '@/services/ideaService';
 import { startRecording, stopRecording, playAudio, stopAudio } from '@/services/audioService';
 import { transcribeAudio } from '@/services/transcriptionService';
@@ -131,29 +132,63 @@ export default function InboxScreen() {
                 <View style={styles.actions}>
                     {audioUri && !isProcessingAudio ? (
                         <>
-                            <Button title={isPlaying ? "Playing..." : "Play"} onPress={handlePlayAudio} />
-                            <Button title="Stop" onPress={handleStopAudio} />
-                            <Button title="Save Idea" onPress={handleSave} disabled={isProcessingAudio} />
+                            <TouchableOpacity style={styles.iconButton} onPress={handlePlayAudio}>
+                                <Ionicons name={isPlaying ? "pause-circle" : "play-circle"} size={32} color="#9b59b6" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.iconButton} onPress={handleStopAudio}>
+                                <Ionicons name="stop-circle" size={32} color="#e74c3c" />
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.actionButton, styles.primaryButton]} 
+                                onPress={handleSave} 
+                                disabled={isProcessingAudio}
+                            >
+                                <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+                                <Text style={styles.buttonText}>Save Idea</Text>
+                            </TouchableOpacity>
                         </>
                     ) : (
                         <>
-                            <Button title="Save Idea" onPress={handleSave} disabled={(!text.trim()) || isRecording || isProcessingAudio} />
-                            <Button 
-                                title={isRecording ? "Stop Recording" : (isProcessingAudio ? "Processing..." : "🎤 Record")} 
+                            <TouchableOpacity 
+                                style={[styles.actionButton, styles.primaryButton, (!text.trim() || isRecording || isProcessingAudio) && styles.disabledButton]} 
+                                onPress={handleSave} 
+                                disabled={(!text.trim()) || isRecording || isProcessingAudio}
+                            >
+                                <Ionicons name="send-outline" size={18} color="#fff" />
+                                <Text style={styles.buttonText}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.actionButton, isRecording ? styles.recordingButton : styles.secondaryButton]} 
                                 onPress={handleToggleRecording} 
-                                color={isRecording ? "red" : "#888"} 
                                 disabled={isProcessingAudio}
-                            />
+                            >
+                                <Ionicons 
+                                    name={isRecording ? "stop-circle" : "mic-outline"} 
+                                    size={20} 
+                                    color={isRecording ? "#fff" : "#9b59b6"} 
+                                />
+                                <Text style={[styles.buttonText, { color: isRecording ? "#fff" : "#9b59b6" }]}>
+                                    {isRecording ? "Stop" : "Record"}
+                                </Text>
+                            </TouchableOpacity>
                         </>
                     )}
                 </View>
             </PaperCard>
 
             <View style={styles.listHeader}>
-                <Text style={styles.listTitle}>Saved Ideas</Text>
+                <Text style={styles.listTitle}>Inbox</Text>
                 <View style={styles.headerActions}>
-                    <Button title="Cluster Ideas" onPress={() => router.push('/clusters')} color="#9b59b6" />
-                    <Button title="Refresh" onPress={loadIdeas} />
+                    <TouchableOpacity 
+                        style={styles.clusterButton} 
+                        onPress={() => router.push('/clusters')}
+                    >
+                        <Ionicons name="layers-outline" size={18} color="#fff" />
+                        <Text style={styles.clusterButtonText}>Cluster</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.refreshIconButton} onPress={loadIdeas}>
+                        <Ionicons name="refresh-outline" size={22} color="#666" />
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -184,13 +219,46 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16, backgroundColor: '#f5f5f5' },
-    card: { paddingBottom: 8, marginTop: 40 },
-    actions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-    listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 10 },
-    headerActions: { flexDirection: 'row', gap: 10 },
-    listTitle: { fontSize: 18, fontWeight: 'bold' },
-    listContainer: { paddingBottom: 20 },
-    listItem: { backgroundColor: '#fff', padding: 16, marginBottom: 12, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-    listText: { color: '#333', fontSize: 16 }
+    container: { flex: 1, padding: Theme.spacing.md, backgroundColor: Theme.colors.background },
+    card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface },
+    actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: Theme.borderRadius.xl,
+        gap: 6
+    },
+    primaryButton: { backgroundColor: Theme.colors.primary },
+    secondaryButton: { backgroundColor: Theme.colors.secondary },
+    recordingButton: { backgroundColor: Theme.colors.error },
+    disabledButton: { backgroundColor: '#ddd' },
+    buttonText: { color: Theme.colors.surface, fontWeight: '600', fontSize: 14 },
+    iconButton: { padding: 4 },
+    listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 32, marginBottom: 16 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    listTitle: { fontSize: 22, fontWeight: 'bold', color: Theme.colors.text },
+    clusterButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Theme.colors.primary,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: Theme.borderRadius.lg + 6,
+        gap: 6
+    },
+    clusterButtonText: { color: Theme.colors.surface, fontWeight: '600', fontSize: 13 },
+    refreshIconButton: { padding: 4 },
+    listContainer: { paddingBottom: 40 },
+    listItem: { 
+        backgroundColor: Theme.colors.surface, 
+        padding: 16, 
+        marginBottom: 12, 
+        borderRadius: Theme.borderRadius.md, 
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        ...Theme.shadows.soft
+    },
+    listText: { color: Theme.colors.textSecondary, fontSize: 16, lineHeight: 22 }
 });

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Button, Text, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, Pressable, ScrollView, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Idea } from '@sparkles/core';
 import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
 import { addLink, fetchLinksForIdea, removeLink, removeLinksByIdea } from '@/services/linkService';
 import { playAudio, stopAudio } from '@/services/audioService';
-import { IdeaInput, PaperCard, ConfirmModal } from '@sparkles/ui';
+import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
 import { suggestLinks } from '@sparkles/ai';
 import { Link } from '@sparkles/core';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +30,7 @@ export default function DevelopScreen() {
 
     const toggleAudio = async () => {
         if (!idea?.audioLocalPath) return;
-        
+
         try {
             if (isPlaying) {
                 await stopAudio();
@@ -184,25 +184,28 @@ export default function DevelopScreen() {
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
             <View style={styles.headerRow}>
-                <Text style={styles.header}>Develop Idea</Text>
-                <Pressable onPress={handleDeleteMainIdea} disabled={isDeleting}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <Ionicons name="chevron-back" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.header}>Develop</Text>
+                <TouchableOpacity onPress={handleDeleteMainIdea} disabled={isDeleting} style={styles.deleteButton}>
                     {isDeleting ? (
                         <ActivityIndicator size="small" color="#ef4444" />
                     ) : (
-                        <Ionicons name="trash-outline" size={24} color="#ef4444" />
+                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
                     )}
-                </Pressable>
+                </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={styles.labelRow}>
                 <Text style={styles.label}>Main Idea</Text>
                 {idea.audioLocalPath && (
-                    <Pressable onPress={toggleAudio} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
-                        <Ionicons name={isPlaying ? "stop-circle-outline" : "play-circle-outline"} size={20} color="#3b82f6" />
-                        <Text style={{ color: '#3b82f6', marginLeft: 4, fontWeight: '500' }}>
-                            {isPlaying ? "Stop Audio" : "Play Audio"}
+                    <TouchableOpacity onPress={toggleAudio} style={styles.audioAction}>
+                        <Ionicons name={isPlaying ? "stop-circle" : "play-circle"} size={22} color="#9b59b6" />
+                        <Text style={styles.audioText}>
+                            {isPlaying ? "Stop" : "Listen"}
                         </Text>
-                    </Pressable>
+                    </TouchableOpacity>
                 )}
             </View>
 
@@ -243,8 +246,17 @@ export default function DevelopScreen() {
             )}
 
             <View style={styles.actions}>
-                <Button title="Suggest Links" onPress={handleSuggestLinks} />
-                <Button title="Review Ideas" onPress={() => Alert.alert('Mock', 'Review Ideas mock')} color="#059669" />
+                <TouchableOpacity style={styles.actionButton} onPress={handleSuggestLinks}>
+                    <Ionicons name="git-network-outline" size={20} color="#9b59b6" />
+                    <Text style={styles.actionButtonText}>Suggest Links</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: '#f0f0f0' }]}
+                    onPress={() => Alert.alert('Mock', 'Review Ideas mock')}
+                >
+                    <Ionicons name="checkmark-done-outline" size={20} color="#666" />
+                    <Text style={[styles.actionButtonText, { color: '#666' }]}>Review</Text>
+                </TouchableOpacity>
             </View>
 
             <ConfirmModal
@@ -304,33 +316,80 @@ export default function DevelopScreen() {
 
 
             <View style={styles.bottomActions}>
-                <Button title="Cancel" onPress={() => router.back()} color="#888" />
-                <Button title="Save Changes" onPress={handleSave} />
+                <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+                    <Text style={styles.cancelButtonText}>Discard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                </TouchableOpacity>
             </View>
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fcfcfc' },
-    contentContainer: { padding: 16, paddingTop: 60, paddingBottom: 40 },
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    header: { fontSize: 24, fontWeight: 'bold' },
-    label: { fontSize: 14, fontWeight: '600', color: '#666', marginBottom: 8, marginTop: 16, textTransform: 'uppercase' },
-    inputExpanded: { minHeight: 200 },
-    inputLinked: { minHeight: 120 },
-    linkedSection: { marginTop: 20 },
-    linkedCardWrapper: { marginBottom: 16 },
-    linkedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-    linkedTitle: { fontSize: 16, fontWeight: '500', color: '#333' },
-    unlinkButton: { flexDirection: 'row', alignItems: 'center' },
-    unlinkText: { color: '#ef4444', fontSize: 12, marginLeft: 4, fontWeight: '500' },
-    actions: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 30 },
-    bottomActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
-    suggestionsList: { marginVertical: 10 },
-    suggestionItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee', borderRadius: 8 },
-    selectedSuggestion: { backgroundColor: '#e0f2fe', borderColor: '#3b82f6', borderWidth: 1 },
-    suggestionTitle: { fontSize: 16 },
-    confirmText: { fontSize: 16, color: '#444', textAlign: 'center', marginBottom: 20 }
+    container: { flex: 1, backgroundColor: Theme.colors.background },
+    contentContainer: { padding: Theme.spacing.md, paddingTop: Theme.spacing.md, paddingBottom: Theme.spacing.header },
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.lg },
+    backButton: { padding: Theme.spacing.xs, marginLeft: -Theme.spacing.sm },
+    header: { fontSize: 24, fontWeight: 'bold', color: Theme.colors.text },
+    deleteButton: { padding: Theme.spacing.xs },
+    labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.sm, marginTop: Theme.spacing.md },
+    label: { fontSize: 13, fontWeight: '700', color: Theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
+    audioAction: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.primaryLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Theme.borderRadius.lg, gap: 6 },
+    audioText: { color: Theme.colors.primary, fontWeight: '600', fontSize: 13 },
+    inputExpanded: { minHeight: 200, fontSize: 16, color: Theme.colors.text },
+    inputLinked: { minHeight: 120, fontSize: 15, color: Theme.colors.textSecondary },
+    linkedSection: { marginTop: Theme.spacing.xl },
+    linkedCardWrapper: { marginBottom: Theme.spacing.lg },
+    linkedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.sm },
+    linkedTitle: { fontSize: 15, fontWeight: '600', color: Theme.colors.textSecondary },
+    unlinkButton: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        backgroundColor: Theme.colors.surface, 
+        paddingHorizontal: 10, 
+        paddingVertical: 4, 
+        borderRadius: Theme.borderRadius.md, 
+        borderWidth: 1, 
+        borderColor: Theme.colors.errorLight 
+    },
+    unlinkText: { color: Theme.colors.error, fontSize: 12, marginLeft: Theme.spacing.xs, fontWeight: '600' },
+    actions: { flexDirection: 'row', gap: Theme.spacing.sm, marginVertical: Theme.spacing.xl },
+    actionButton: { 
+        flex: 1, 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        backgroundColor: Theme.colors.surface, 
+        paddingVertical: Theme.spacing.sm + 4, 
+        borderRadius: Theme.borderRadius.md, 
+        borderWidth: 1, 
+        borderColor: Theme.colors.border,
+        gap: 8,
+        ...Theme.shadows.soft
+    },
+    actionButtonText: { color: Theme.colors.primary, fontWeight: '600', fontSize: 14 },
+    bottomActions: { flexDirection: 'row', gap: Theme.spacing.sm, marginTop: Theme.spacing.lg },
+    cancelButton: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Theme.spacing.md },
+    cancelButtonText: { color: Theme.colors.textMuted, fontWeight: '600', fontSize: 16 },
+    saveButton: { 
+        flex: 2, 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        backgroundColor: Theme.colors.primary, 
+        paddingVertical: Theme.spacing.md, 
+        borderRadius: Theme.borderRadius.lg, 
+        gap: 8,
+        ...Theme.shadows.primary
+    },
+    saveButtonText: { color: Theme.colors.surface, fontWeight: '700', fontSize: 16 },
+    suggestionsList: { marginVertical: Theme.spacing.sm },
+    suggestionItem: { padding: Theme.spacing.md, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, borderRadius: Theme.borderRadius.md, marginBottom: Theme.spacing.sm },
+    selectedSuggestion: { backgroundColor: Theme.colors.primaryLight, borderColor: Theme.colors.primary, borderWidth: 1 },
+    suggestionTitle: { fontSize: 16, color: Theme.colors.text },
+    confirmText: { fontSize: 16, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: Theme.spacing.lg, lineHeight: 22 }
 });
 

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { AIProvider, ClusterResult } from '../types';
+import { CLUSTERING_PROMPT, SUMMARIZATION_PROMPT } from '../prompts';
 
 export class OpenAIProvider implements AIProvider {
   private openai: OpenAI;
@@ -20,21 +21,7 @@ export class OpenAIProvider implements AIProvider {
       messages: [
         {
           role: 'system',
-          content: `You are an expert at organizing and clustering ideas. 
-Group the provided ideas into logical themes.
-Return STRICT JSON matching this schema:
-{
-  "clusters": [
-    {
-      "title": "Theme Name",
-      "items": ["Exact original idea text 1", "Exact original idea text 2"]
-    }
-  ]
-}
-RULES:
-1. You MUST include EVERY single idea provided in exactly one cluster.
-2. DO NOT hallucinate or modify the original text of the ideas.
-3. Return ONLY valid JSON. No markdown formatting.`,
+          content: CLUSTERING_PROMPT,
         },
         {
           role: 'user',
@@ -68,7 +55,7 @@ RULES:
       messages: [
         {
           role: 'system',
-          content: 'Summarize the following ideas into a concise, overarching summary.',
+          content: SUMMARIZATION_PROMPT,
         },
         {
           role: 'user',
