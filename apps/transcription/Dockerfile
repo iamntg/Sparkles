@@ -14,7 +14,8 @@ RUN git clone --depth 1 --branch v1.7.4 \
 WORKDIR /build/whisper.cpp
 
 # Compile (CPU only — Render free tier has no GPU)
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+# We build with -DBUILD_SHARED_LIBS=OFF to create a static binary that doesn't depend on libwhisper.so
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
     && cmake --build build --config Release -j$(nproc)
 
 # ── Stage 2: Download the AI model ────────────────────────────────────────────
