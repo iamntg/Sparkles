@@ -10,6 +10,15 @@ export async function createLink(link: Link): Promise<void> {
   );
 }
 
+export async function upsertLink(link: Link): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO links (id, fromIdeaId, toIdeaId, type, confidence, createdAt) 
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [link.id, link.fromIdeaId, link.toIdeaId, link.type, link.confidence, link.createdAt]
+  );
+}
+
 export async function getLinksForIdea(ideaId: string): Promise<Link[]> {
   const db = await getDb();
   return await db.getAllAsync<Link>(

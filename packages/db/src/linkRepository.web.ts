@@ -26,6 +26,14 @@ export async function createLink(link: Link): Promise<void> {
     setStorage(links);
 }
 
+export async function upsertLink(link: Link): Promise<void> {
+    const links = getStorage();
+    // Filter out ANY existing records with this ID (cleaning up potential duplicates)
+    const filtered = links.filter(l => l.id !== link.id);
+    filtered.push(link);
+    setStorage(filtered);
+}
+
 export async function getLinksForIdea(ideaId: string): Promise<Link[]> {
     const links = getStorage();
     return links
