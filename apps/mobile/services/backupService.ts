@@ -1,15 +1,45 @@
 import { getAllIdeas, getAllLinks, upsertIdea, upsertLink } from '@sparkles/db';
-import { 
-    generateSalt, 
-    deriveKeyFromPassphrase, 
-    encryptVault, 
-    decryptVault 
+import {
+  generateSalt,
+  deriveKeyFromPassphrase,
+  encryptVault,
+  decryptVault
 } from '@sparkles/crypto';
 import { googleDriveService } from './googleDriveService';
 import { VaultManifest } from '@sparkles/core';
 
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
 const BACKUP_FILENAME = 'sparkles_backup.json';
-const MOCK_PASSPHRASE = 'sparkles_user_vault_key'; // In a real app, prompt the user or use SecureStore
+const VAULT_KEY_STORAGE_KEY = 'sparkles_vault_passphrase';
+
+/**
+ * Gets or creates a unique encryption passphrase for this user.
+ * This is stored securely on the device and is unique to every user.
+ */
+async function getVaultKey(): Promise<string> {
+  let key: string | null = null;
+
+  if (Platform.OS === 'web') {
+    key = localStorage.getItem(VAULT_KEY_STORAGE_KEY);
+  } else {
+    key = await SecureStore.getItemAsync(VAULT_KEY_STORAGE_KEY);
+  }
+
+  if (!key) {
+    // Generate a random unique key for this new user
+    key = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+
+    if (Platform.OS === 'web') {
+      localStorage.setItem(VAULT_KEY_STORAGE_KEY, key);
+    } else {
+      await SecureStore.setItemAsync(VAULT_KEY_STORAGE_KEY, key);
+    }
+  }
+
+  return key;
+}
 
 export const backupService = {
   /**
@@ -20,7 +50,7 @@ export const backupService = {
       // 1. Fetch all local data
       const ideas = await getAllIdeas();
       const links = await getAllLinks();
-      
+
       const backupData = {
         ideas,
         links,
@@ -34,7 +64,8 @@ export const backupService = {
 
       // 2. Encrypt the data
       const salt = await generateSalt();
-      const key = await deriveKeyFromPassphrase(MOCK_PASSPHRASE, salt);
+      const passphrase = await getVaultKey();
+      const key = await deriveKeyFromPassphrase(passphrase, salt);
       const encryptedPayload = await encryptVault(dataString, key);
 
       const manifest: VaultManifest = {
@@ -48,7 +79,7 @@ export const backupService = {
 
       // 3. Upload to Google Drive
       await googleDriveService.uploadBackupFile(BACKUP_FILENAME, fullBackup);
-      
+
       console.log('Backup successful');
     } catch (error) {
       console.error('Backup failed:', error);
@@ -66,13 +97,14 @@ export const backupService = {
       const { manifest, payload } = JSON.parse(cloudContent);
 
       // 2. Decrypt the data
-      const key = await deriveKeyFromPassphrase(MOCK_PASSPHRASE, manifest.kdf.salt);
+      const passphrase = await getVaultKey();
+      const key = await deriveKeyFromPassphrase(passphrase, manifest.kdf.salt);
       const decryptedDataString = await decryptVault(payload, key);
       const backupData = JSON.parse(decryptedDataString);
 
       // 3. Restore to local DB
       // We use upsert to prevent duplicates and update existing records
-      
+
       if (backupData.ideas) {
         for (const idea of backupData.ideas) {
           await upsertIdea(idea);
