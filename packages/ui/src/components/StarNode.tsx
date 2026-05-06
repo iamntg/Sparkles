@@ -5,7 +5,11 @@ export function StarNode({ x, y, onPress }: { x: number, y: number, onPress?: ()
     // In a real implementation inside the Constellation screen, we would use Skia.
     // This is a placeholder standard RN component representation for fallback.
     return (
-        <Pressable onPress={onPress} style={[styles.star, { left: x, top: y }]} />
+        <Pressable 
+            onPress={onPress} 
+            style={[styles.star, { left: x, top: y }]} 
+            hitSlop={20}
+        />
     );
 }
 

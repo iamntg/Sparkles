@@ -32,3 +32,20 @@ export async function getLinksForIdea(ideaId: string): Promise<Link[]> {
         .filter(l => l.fromIdeaId === ideaId || l.toIdeaId === ideaId)
         .sort((a, b) => b.createdAt - a.createdAt);
 }
+
+export async function getAllLinks(): Promise<Link[]> {
+    const links = getStorage();
+    return links.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function deleteLink(id: string): Promise<void> {
+    const links = getStorage();
+    const filtered = links.filter(l => l.id !== id);
+    setStorage(filtered);
+}
+
+export async function deleteLinksByIdea(ideaId: string): Promise<void> {
+    const links = getStorage();
+    const filtered = links.filter(l => l.fromIdeaId !== ideaId && l.toIdeaId !== ideaId);
+    setStorage(filtered);
+}

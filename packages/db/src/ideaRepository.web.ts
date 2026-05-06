@@ -49,3 +49,12 @@ export async function updateIdea(idea: Idea): Promise<void> {
         setStorage(ideas);
     }
 }
+
+export async function deleteIdea(id: string): Promise<void> {
+    const ideas = getStorage();
+    const index = ideas.findIndex(i => i.id === id);
+    if (index !== -1) {
+        ideas[index].deletedAt = Date.now();
+        setStorage(ideas);
+    }
+}

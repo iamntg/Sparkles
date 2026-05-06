@@ -34,6 +34,11 @@ export async function saveIdeaChanges(idea: Idea): Promise<void> {
     return updateIdea(idea);
 }
 
+export async function deleteIdea(id: string): Promise<void> {
+    const { deleteIdea: dbDeleteIdea } = require('@sparkles/db');
+    return dbDeleteIdea(id);
+}
+
 async function generateRandomString() {
     const bytes = await Crypto.getRandomBytesAsync(8);
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');

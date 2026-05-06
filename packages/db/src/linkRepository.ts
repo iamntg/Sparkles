@@ -17,3 +17,18 @@ export async function getLinksForIdea(ideaId: string): Promise<Link[]> {
     [ideaId, ideaId]
   );
 }
+
+export async function getAllLinks(): Promise<Link[]> {
+  const db = await getDb();
+  return await db.getAllAsync<Link>(`SELECT * FROM links ORDER BY createdAt DESC`);
+}
+
+export async function deleteLink(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`DELETE FROM links WHERE id = ?`, [id]);
+}
+
+export async function deleteLinksByIdea(ideaId: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`DELETE FROM links WHERE fromIdeaId = ? OR toIdeaId = ?`, [ideaId, ideaId]);
+}
