@@ -8,10 +8,12 @@ import { backupService } from '@/services/backupService';
 export default function SettingsScreen() {
     const [aiReviewEnabled, setAiReviewEnabled] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [authenticated, setAuthenticated] = useState(googleAuthService.isAuthenticated());
 
     const ensureAuth = async () => {
         if (!googleAuthService.isAuthenticated()) {
             await googleAuthService.login();
+            setAuthenticated(true);
         }
     };
 
@@ -42,13 +44,26 @@ export default function SettingsScreen() {
     };
 
     const handleSignOut = async () => {
-        Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Out', style: 'destructive', onPress: async () => {
-                await googleAuthService.logout();
+        const performLogout = async () => {
+            await googleAuthService.logout();
+            setAuthenticated(false);
+            if (Platform.OS === 'web') {
+                window.alert('You have been signed out from Google.');
+            } else {
                 Alert.alert('Signed Out', 'You have been signed out from Google.');
-            }}
-        ]);
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to sign out?')) {
+                performLogout();
+            }
+        } else {
+            Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign Out', style: 'destructive', onPress: performLogout }
+            ]);
+        }
     };
 
     return (
@@ -77,10 +92,10 @@ export default function SettingsScreen() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Cloud Backup (Google Drive)</Text>
 
-                {googleAuthService.isAuthenticated() && (
+                {authenticated && (
                     <View style={styles.authInfoContainer}>
-                        <Text style={styles.authInfo}>Logged in as {googleAuthService.getUser()?.email}</Text>
-                        <TouchableOpacity onPress={handleSignOut}>
+                        <Text style={styles.authInfo} numberOfLines={1}>Logged in as {googleAuthService.getUser()?.email}</Text>
+                        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
                             <Text style={styles.signOutText}>Sign Out</Text>
                         </TouchableOpacity>
                     </View>
@@ -131,8 +146,15 @@ const styles = StyleSheet.create({
     subLabel: { fontSize: 14, color: Theme.colors.textMuted, marginTop: 4, marginLeft: 32 },
     divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
     authInfoContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    authInfo: { fontSize: 14, color: Theme.colors.primary, fontWeight: '500' },
-    signOutText: { fontSize: 14, color: Theme.colors.error, fontWeight: '600' },
+    authInfo: { fontSize: 14, color: Theme.colors.primary, fontWeight: '500', flex: 1 },
+    signOutButton: { 
+        paddingHorizontal: 12, 
+        paddingVertical: 6, 
+        backgroundColor: Theme.colors.errorLight, 
+        borderRadius: Theme.borderRadius.sm,
+        marginLeft: 8
+    },
+    signOutText: { fontSize: 13, color: Theme.colors.error, fontWeight: '700' },
     button: {
         flexDirection: 'row',
         alignItems: 'center',
