@@ -71,7 +71,7 @@ export default function InboxScreen() {
             try {
                 const uri = await stopRecording();
                 setAudioUri(uri);
-                
+
                 // Immediately transcribe and save
                 setIsProcessingAudio(true);
                 let transcribedText = '';
@@ -82,13 +82,13 @@ export default function InboxScreen() {
                     status = 'FAILED';
                     Alert.alert('Transcription Failed', 'Could not transcribe the audio. Saving with failed status.');
                 }
-                
+
                 const finalIdea = await saveNewIdea(transcribedText, {
                     sourceType: 'audio',
                     audioLocalPath: uri,
                     transcriptStatus: status
                 });
-                
+
                 setLastSavedId(finalIdea.id);
                 setAudioUri(null);
                 setShowModal(true);
@@ -168,9 +168,9 @@ export default function InboxScreen() {
                         )}
                     </View>
                 )}
-                {isRecording && <Text style={{marginVertical: 20, alignSelf:'center', color: 'red'}}>Recording Audio...</Text>}
-                {isProcessingAudio && <Text style={{marginVertical: 20, alignSelf:'center', color: '#888'}}>Transcribing...</Text>}
-                
+                {isRecording && <Text style={{ marginVertical: 20, alignSelf: 'center', color: 'red' }}>Recording Audio...</Text>}
+                {isProcessingAudio && <Text style={{ marginVertical: 20, alignSelf: 'center', color: '#888' }}>Transcribing...</Text>}
+
                 <View style={styles.actions}>
                     {audioUri && !isProcessingAudio ? (
                         <>
@@ -180,9 +180,9 @@ export default function InboxScreen() {
                             <TouchableOpacity style={styles.iconButton} onPress={handleStopAudio}>
                                 <Ionicons name="stop-circle" size={32} color="#e74c3c" />
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={[styles.actionButton, styles.primaryButton]} 
-                                onPress={handleSave} 
+                            <TouchableOpacity
+                                style={[styles.actionButton, styles.primaryButton]}
+                                onPress={handleSave}
                                 disabled={isProcessingAudio}
                             >
                                 <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
@@ -191,23 +191,23 @@ export default function InboxScreen() {
                         </>
                     ) : (
                         <>
-                            <TouchableOpacity 
-                                style={[styles.actionButton, styles.primaryButton, (!text.trim() || isRecording || isProcessingAudio) && styles.disabledButton]} 
-                                onPress={handleSave} 
+                            <TouchableOpacity
+                                style={[styles.actionButton, styles.primaryButton, (!text.trim() || isRecording || isProcessingAudio) && styles.disabledButton]}
+                                onPress={handleSave}
                                 disabled={(!text.trim()) || isRecording || isProcessingAudio}
                             >
                                 <Ionicons name="send-outline" size={18} color="#fff" />
                                 <Text style={styles.buttonText}>Save</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={[styles.actionButton, isRecording ? styles.recordingButton : styles.secondaryButton]} 
-                                onPress={handleToggleRecording} 
+                            <TouchableOpacity
+                                style={[styles.actionButton, isRecording ? styles.recordingButton : styles.secondaryButton]}
+                                onPress={handleToggleRecording}
                                 disabled={isProcessingAudio}
                             >
-                                <Ionicons 
-                                    name={isRecording ? "stop-circle" : "mic-outline"} 
-                                    size={20} 
-                                    color={isRecording ? "#fff" : "#9b59b6"} 
+                                <Ionicons
+                                    name={isRecording ? "stop-circle" : "mic-outline"}
+                                    size={20}
+                                    color={isRecording ? "#fff" : "#9b59b6"}
                                 />
                                 <Text style={[styles.buttonText, { color: isRecording ? "#fff" : "#9b59b6" }]}>
                                     {isRecording ? "Stop" : "Record"}
@@ -221,12 +221,15 @@ export default function InboxScreen() {
             <View style={styles.listHeader}>
                 <Text style={styles.listTitle}>Inbox</Text>
                 <View style={styles.headerActions}>
-                    <TouchableOpacity 
-                        style={styles.clusterButton} 
+                    <TouchableOpacity
+                        style={styles.clusterButton}
                         onPress={() => router.push('/clusters')}
                     >
-                        <Ionicons name="layers-outline" size={18} color="#fff" />
-                        <Text style={styles.clusterButtonText}>Cluster</Text>
+                        <View style={{ position: 'relative', width: 22, height: 18, justifyContent: 'center' }}>
+                            <Ionicons name="layers-outline" size={16} color="#fff" />
+                            <Ionicons name="sparkles-outline" size={12} color="#fff" style={{ position: 'absolute', top: -2, right: -4 }} />
+                        </View>
+                        <Text style={styles.clusterButtonText}>AI Cluster</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.refreshIconButton} onPress={loadIdeas}>
                         <Ionicons name="refresh-outline" size={22} color="#666" />
@@ -263,14 +266,14 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, padding: Theme.spacing.md, backgroundColor: Theme.colors.background },
     card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface, zIndex: 10 },
-    titleInput: { 
-        fontSize: 16, 
-        fontWeight: '600', 
-        color: Theme.colors.text, 
-        marginBottom: 8, 
-        paddingBottom: 8, 
-        borderBottomWidth: 1, 
-        borderBottomColor: Theme.colors.border 
+    titleInput: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Theme.colors.text,
+        marginBottom: 8,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: Theme.colors.border
     },
     tagSuggestionsBox: {
         position: 'absolute',
@@ -325,11 +328,11 @@ const styles = StyleSheet.create({
     clusterButtonText: { color: Theme.colors.surface, fontWeight: '600', fontSize: 13 },
     refreshIconButton: { padding: 4 },
     listContainer: { paddingBottom: 40 },
-    listItem: { 
-        backgroundColor: Theme.colors.surface, 
-        padding: 16, 
-        marginBottom: 12, 
-        borderRadius: Theme.borderRadius.md, 
+    listItem: {
+        backgroundColor: Theme.colors.surface,
+        padding: 16,
+        marginBottom: 12,
+        borderRadius: Theme.borderRadius.md,
         borderWidth: 1,
         borderColor: Theme.colors.border,
         ...Theme.shadows.soft
