@@ -1,55 +1,48 @@
 # Feature: Inbox List View
 
-## Goal
-Allow users to browse and access previously captured ideas for further development.
+## 1. Goal & Context
+Browse and manage captured ideas, with quick access to AI-driven clustering and development.
 
-## User Flow
-1. User opens the Inbox tab
-2. System loads ideas from local database
-3. Ideas are displayed in a list (most recent first)
-4. User taps an idea
-5. System navigates to Develop screen
+## 2. User Experience (UX)
+### User Flow
+1. User opens the Inbox tab.
+2. System loads all ideas (most recent first).
+3. **Idea Display**: Each item shows its **Title** (if available) or a snippet of its **Text**.
+4. **AI Clustering**: User can tap the "AI Cluster" button to view ideas grouped by theme.
+5. **Quick Capture**: User can add new ideas directly from the top input area (includes title and tag support).
+6. **Navigation**: Tapping an idea navigates to the Develop screen.
 
-## Inputs
-- Fetch request triggered on screen load or manual refresh
+## 3. Technical Specification
+### Inputs & Outputs
+- **Inputs**: Database query on screen focus, User interaction (tap, scroll, type).
+- **Outputs**: Rendered list of idea cards, navigation to `/develop/[id]` or `/clusters`.
 
-## Outputs
-- Rendered list of ideas
-- Navigation to `/develop/[id]`
+### Data Model Usage
+- **Table**: `ideas`
+- **Fields**: `id`, `title`, `text`, `tags`, `updatedAt`
+- **Constraints**: Sorted by `updatedAt DESC`.
 
-## Data Model Usage
-Table: `ideas`
-Fields:
-- id
-- text
-- updatedAt
-- deletedAt
+### External Services
+- **Navigation**: Expo Router for screen transitions.
 
-Constraints:
-- Only ideas where `deletedAt IS NULL`
-- Sorted by `updatedAt DESC`
+## 4. Business Rules & Constraints
+- **Title Fallback**: If an idea has no title, the list item displays the first two lines of `text`.
+- **Sorting**: Newest or most recently updated ideas always appear at the top.
+- **Tagging**: Typing `#` triggers a suggestion UI based on existing tags.
+- **Dataset Size**: Currently loads all records; pagination may be required for large datasets.
 
-## Rules
-- Display preview of idea text (first 1–2 lines)
-- If text is missing, fallback to "Empty Idea"
-- Entire dataset is loaded into memory
+## 5. Acceptance Criteria
+- [ ] List displays all non-deleted ideas sorted by `updatedAt` descending.
+- [ ] Tapping an idea navigates correctly to `/develop/[id]`.
+- [ ] "AI Cluster" button navigates to the Clusters screen.
+- [ ] Tag suggestions appear when typing `#` in the input field.
+- [ ] Idea cards show Title or Text preview based on availability.
+- [ ] Pull-to-refresh or manual refresh button reloads the list from the database.
 
-## State Transitions
-- No state transition in this feature
-
-## Edge Cases
-- Empty dataset → no explicit empty state UI
-- Large dataset → performance risk due to full load
-- Missing text → fallback string used
-
-## Gaps / TODOs
-- No filtering by status (INBOX / CONSTELLATION / DEVELOPING)
-- No delete/archive actions
-- No search functionality
-- No pagination or lazy loading
-
-## Future Direction
-- Add filtering by idea status
-- Implement search and tagging
-- Add swipe actions (delete/archive)
-- Introduce pagination for scalability
+## 6. Implementation Status
+- [x] List view with Title/Text fallback
+- [x] AI Cluster entry point (button in header)
+- [x] Integrated Idea Input (with Title/Tags)
+- [x] Tag suggestions UI
+- [x] Refresh functionality
+- [x] Modernized UI (PaperCard, Ionicons)

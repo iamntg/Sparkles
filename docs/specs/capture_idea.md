@@ -1,132 +1,71 @@
 # Feature: Capture Idea
 
-## Goal
-Allow users to quickly capture a new idea and store it in an initial state for later decision-making.
+## 1. Goal & Context
+Allow users to quickly capture a new idea (text or audio) and store it with metadata for later development.
 
-## User Flow
-1. User enters text in the input field
-2. User taps "Save"
-3. System creates a new Idea
-4. A confirmation modal appears:
-   - "Develop further"
-   - "Come back later"
-
-## Inputs
-- Text string from user input
-
-## Outputs
-- New row inserted into `ideas` table
-- Input field is cleared
-- Confirmation modal is displayed
-
-## Data Model Usage
-Table: `ideas`
-Fields:
-- id
-- text
-- title (derived from text)
-- createdAt
-- updatedAt
-- status = INBOX
-
-## Rules
-- Input must not be empty or whitespace-only
-- Title is derived from text (first line or first 40 chars)
-- Idea must always be created in `INBOX` state
-
-## State Transitions
-- New Idea → `INBOX`
-
-## Edge Cases
-- Empty input → prevent save
-- Audio input → not implemented
-- Very large text → no limit enforced
-
-## Gaps / TODOs
-- Audio recording and transcription not implemented
-- No metadata (tags, categories) captured at creation
-- No validation for very large inputs
-
-## Future Direction
-- Add audio capture with transcription
-- Allow quick tagging during capture
-- Add optional auto-save drafts before explicit save
-
------
-
-## Audio Capture Flow
-
+## 2. User Experience (UX)
 ### User Flow
-1. User taps "Record"
-2. Recording starts
-3. User taps "Stop"
-4. Audio is saved locally
-5. User can play back the recorded audio
-6. System transcribes audio into text (mock for now)
-7. Idea is created using transcribed text
-8. Confirmation modal is shown
+#### Text Capture
+1. User enters optional **Title**.
+2. User enters **Text** (optionally including `#tags`).
+3. User taps "Save".
+4. System creates a new Idea and parses tags.
+5. A confirmation modal appears:
+   - "Develop further" -> Navigates to Develop screen.
+   - "Come back later" -> Stays in Inbox.
 
-### Inputs
-- Audio recording from device microphone
+#### Audio Capture
+1. User taps "Record".
+2. System captures audio from microphone.
+3. User taps "Stop".
+4. System immediately:
+   - Saves audio file locally.
+   - **Transcribes** audio to text.
+   - Creates a new Idea with the transcribed text.
+5. A confirmation modal appears.
 
-### Outputs
-- Local audio file saved (URI)
-- New Idea row created with audio metadata
+## 3. Technical Specification
+### Inputs & Outputs
+- **Inputs**: Text (Title, Body, Tags), Audio stream (Microphone).
+- **Outputs**: New row in `ideas` table, local audio file stored (URI), confirmation modal.
 
-### Data Model Usage (Additional Fields)
-- sourceType = "audio"
-- audioLocalPath = string
-- transcriptStatus = "DONE" | "FAILED"
+### Data Model Usage
+- **Table**: `ideas`
+- **Fields**:
+  - `id`: UUID
+  - `text`: string (Main body or transcript)
+  - `title`: string (User provided or derived)
+  - `sourceType`: "text" | "audio"
+  - `audioLocalPath`: string (URI for audio sources)
+  - `transcriptStatus`: "DONE" | "FAILED"
+  - `tags`: string[] (parsed from text)
+  - `status`: "INBOX"
 
-### Rules
-- Recording must be explicitly started and stopped
-- Playback should be available before saving
-- Idea is created only after recording is completed
-- Audio file must be stored locally and referenced via URI
+### External Services
+- **Expo Audio**: For microphone recording and playback.
+- **Transcription Service**: AI-based speech-to-text.
 
-### Edge Cases
-- User cancels recording → no idea created
-- Recording fails → show error
-- Playback fails → allow retry
-- Transcription fails → save idea with empty text and FAILED status
+## 4. Business Rules & Constraints
+- **Title**: Optional; fallback to text preview if missing.
+- **Tags**: Extracted using regex `#tagname`.
+- **Permissions**: Audio capture requires explicit microphone permissions.
+- **Reliability**: Idea must be created even if transcription fails.
+- **Initial State**: All ideas start in `INBOX` status.
 
-### Gaps / TODOs
-- No waveform visualization
-- No background transcription
-- No retry mechanism for failed transcription
+## 5. Acceptance Criteria
+- [ ] Saving text idea creates a record in `ideas` with `sourceType='text'`.
+- [ ] Tags are correctly parsed into the `tags` array (e.g., "#sparkles" -> ["sparkles"]).
+- [ ] Audio recording generates a valid URI in `audioLocalPath`.
+- [ ] Transcription completion updates `text` and sets `transcriptStatus='DONE'`.
+- [ ] Empty text input prevents saving.
+- [ ] Failed transcription sets `transcriptStatus='FAILED'` but still saves the idea.
 
------
+## 6. Implementation Status
+- [x] Text capture with Title
+- [x] Tag extraction (#tags)
+- [x] Audio recording (Expo Audio)
+- [x] Audio transcription (Service-based)
+- [x] Confirmation flow
+- [x] Local storage of audio files
 
-## Audio Transcription Flow
 
-### User Flow
-1. User records audio
-2. Recording stops
-3. System begins transcription
-4. User sees a loading state ("Transcribing...")
-5. Transcription completes
-6. Idea is created using transcribed text
-7. Confirmation modal is shown
-
-### Inputs
-- Audio file URI
-
-### Outputs
-- Transcribed text
-- Idea saved with text + audio reference
-
-### Rules
-- Transcription starts only after recording stops
-- UI must indicate transcription in progress
-- Idea should not be created until transcription completes
-- Transcription logic must be replaceable (mock → real API)
-
-### Edge Cases
-- Transcription fails → save idea with empty text and FAILED status
-- Long audio → may delay UI response
-- Network failure (future API)
-
-### Gaps / TODOs
-- Currently mocked transcription
-- No retry mechanism
-- No background processing
