@@ -8,6 +8,6 @@ export interface ClusterResult {
 }
 
 export interface AIProvider {
-  clusterIdeas(ideas: string[]): Promise<ClusterResult>;
+  clusterIdeas(ideas: any[]): Promise<ClusterResult>;
   summarizeIdeas(ideas: string[]): Promise<string>;
 }

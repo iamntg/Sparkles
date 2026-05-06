@@ -20,7 +20,9 @@ export async function runMigrations() {
       constellationX REAL,
       constellationY REAL,
       constellationSeed INTEGER,
-      deletedAt INTEGER
+      deletedAt INTEGER,
+      rawText TEXT,
+      tags TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status);
@@ -44,5 +46,24 @@ export async function runMigrations() {
       scope TEXT,
       resultJson TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS tags (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE,
+      usageCount INTEGER DEFAULT 0,
+      createdAt INTEGER
+    );
   `);
+
+  try {
+    await db.execAsync(`ALTER TABLE ideas ADD COLUMN rawText TEXT;`);
+  } catch (e) {
+    // Column might already exist
+  }
+  
+  try {
+    await db.execAsync(`ALTER TABLE ideas ADD COLUMN tags TEXT;`);
+  } catch (e) {
+    // Column might already exist
+  }
 }

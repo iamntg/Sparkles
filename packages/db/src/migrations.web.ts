@@ -1,4 +1,7 @@
-// Web mock for migrations - no-op since localStorage doesn't need schemas
+import { getDb } from './db.web';
+
 export async function runMigrations() {
-    console.log('[Web DB] Mock runMigrations() called. Using localStorage instead of SQLite.');
+    console.log('[Web DB] Initializing IndexedDB schema...');
+    await getDb();
+    console.log('[Web DB] IndexedDB ready.');
 }

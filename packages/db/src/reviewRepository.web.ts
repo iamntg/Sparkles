@@ -1,33 +1,14 @@
 import { ReviewSession } from '@sparkles/core';
-
-const STORAGE_KEY = 'sparkles_review_sessions';
-
-function getStorage(): ReviewSession[] {
-    try {
-        const data = localStorage.getItem(STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        console.error('Failed to read review sessions from localStorage', e);
-        return [];
-    }
-}
-
-function setStorage(sessions: ReviewSession[]) {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-    } catch (e) {
-        console.error('Failed to write review sessions to localStorage', e);
-    }
-}
+import { getDb } from './db.web';
 
 export async function createReviewSession(session: ReviewSession): Promise<void> {
-    const sessions = getStorage();
-    sessions.push(session);
-    setStorage(sessions);
+    const db = await getDb();
+    await db.put('review_sessions', session);
 }
 
 export async function getLatestReviewSession(): Promise<ReviewSession | null> {
-    const sessions = getStorage();
+    const db = await getDb();
+    const sessions = await db.getAll('review_sessions');
     if (sessions.length === 0) return null;
     return sessions.sort((a, b) => b.createdAt - a.createdAt)[0];
 }

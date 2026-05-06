@@ -11,7 +11,7 @@ export class OpenAIProvider implements AIProvider {
     });
   }
 
-  async clusterIdeas(ideas: string[]): Promise<ClusterResult> {
+  async clusterIdeas(ideas: any[]): Promise<ClusterResult> {
     if (!ideas || ideas.length === 0) {
       return { clusters: [] };
     }

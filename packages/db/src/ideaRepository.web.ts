@@ -1,68 +1,40 @@
 import { Idea, IdeaStatus } from '@sparkles/core';
-
-const STORAGE_KEY = 'sparkles_ideas';
-
-function getStorage(): Idea[] {
-    try {
-        const data = localStorage.getItem(STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        console.error('Failed to read from localStorage', e);
-        return [];
-    }
-}
-
-function setStorage(ideas: Idea[]) {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas));
-    } catch (e) {
-        console.error('Failed to write to localStorage', e);
-    }
-}
+import { getDb } from './db.web';
 
 export async function createIdea(idea: Idea): Promise<void> {
-    const ideas = getStorage();
-    ideas.push(idea);
-    setStorage(ideas);
+    const db = await getDb();
+    await db.put('ideas', idea);
 }
 
 export async function getIdea(id: string): Promise<Idea | null> {
-    const ideas = getStorage();
-    return ideas.find(i => i.id === id) || null;
+    const db = await getDb();
+    const idea = await db.get('ideas', id);
+    return idea || null;
 }
 
 export async function getAllIdeas(): Promise<Idea[]> {
-    const ideas = getStorage();
+    const db = await getDb();
+    const ideas = await db.getAll('ideas');
     return ideas
         .filter(i => i.deletedAt === null || i.deletedAt === undefined)
         .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function updateIdea(idea: Idea): Promise<void> {
-    const ideas = getStorage();
-    const index = ideas.findIndex(i => i.id === idea.id);
-    if (index !== -1) {
-        ideas[index] = idea;
-        setStorage(ideas);
-    } else {
-        ideas.push(idea);
-        setStorage(ideas);
-    }
+    const db = await getDb();
+    await db.put('ideas', idea);
 }
 
 export async function upsertIdea(idea: Idea): Promise<void> {
-    const ideas = getStorage();
-    // Filter out ANY existing records with this ID (cleaning up potential duplicates)
-    const filtered = ideas.filter(i => i.id !== idea.id);
-    filtered.push(idea);
-    setStorage(filtered);
+    const db = await getDb();
+    await db.put('ideas', idea);
 }
 
 export async function deleteIdea(id: string): Promise<void> {
-    const ideas = getStorage();
-    const index = ideas.findIndex(i => i.id === id);
-    if (index !== -1) {
-        ideas[index].deletedAt = Date.now();
-        setStorage(ideas);
+    const db = await getDb();
+    const idea = await db.get('ideas', id);
+    if (idea) {
+        idea.deletedAt = Date.now();
+        await db.put('ideas', idea);
     }
 }

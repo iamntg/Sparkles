@@ -10,6 +10,8 @@ export type Idea = {
   updatedAt: number;
   sourceType: string;
   text: string;
+  rawText?: string;
+  tags?: string[];
   title: string;
   status: IdeaStatus;
   transcriptStatus?: string;

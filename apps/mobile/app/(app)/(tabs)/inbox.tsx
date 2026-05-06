@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
-import { saveNewIdea, fetchAllIdeas } from '@/services/ideaService';
+import { saveNewIdea, fetchAllIdeas, searchTags } from '@/services/ideaService';
 import { startRecording, stopRecording, playAudio, stopAudio } from '@/services/audioService';
 import { transcribeAudio } from '@/services/transcriptionService';
 import { Idea } from '@sparkles/core';
@@ -10,7 +10,10 @@ import { useRouter, useFocusEffect } from 'expo-router';
 
 export default function InboxScreen() {
     const [text, setText] = useState('');
+    const [title, setTitle] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [tagSuggestions, setTagSuggestions] = useState<any[]>([]);
+    const [showTagSuggestions, setShowTagSuggestions] = useState(false);
     const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [isRecording, setIsRecording] = useState(false);
@@ -30,13 +33,32 @@ export default function InboxScreen() {
         }, [loadIdeas])
     );
 
+    useEffect(() => {
+        const match = text.match(/#([a-zA-Z0-9_]*)$/);
+        if (match) {
+            searchTags(match[1]).then(tags => {
+                setTagSuggestions(tags);
+                setShowTagSuggestions(tags.length > 0);
+            });
+        } else {
+            setShowTagSuggestions(false);
+        }
+    }, [text]);
+
+    const handleSelectTag = (tagName: string) => {
+        const newText = text.replace(/#([a-zA-Z0-9_]*)$/, `#${tagName} `);
+        setText(newText);
+        setShowTagSuggestions(false);
+    };
+
     const handleSave = async () => {
         if (!text.trim()) return;
         setIsProcessingAudio(true);
-        const finalIdea = await saveNewIdea(text);
+        const finalIdea = await saveNewIdea(text, { title: title.trim() || undefined });
 
         setLastSavedId(finalIdea.id);
         setText('');
+        setTitle('');
         setAudioUri(null);
         setShowModal(true);
         loadIdeas();
@@ -122,11 +144,29 @@ export default function InboxScreen() {
         <View style={styles.container}>
             <PaperCard style={styles.card}>
                 {!isRecording && !isProcessingAudio && !audioUri && (
-                    <IdeaInput
-                        placeholder="What's on your mind?"
-                        value={text}
-                        onChangeText={setText}
-                    />
+                    <View style={{ zIndex: 10 }}>
+                        <TextInput
+                            placeholder="Add a title (optional)"
+                            value={title}
+                            onChangeText={setTitle}
+                            style={styles.titleInput}
+                            placeholderTextColor={Theme.colors.textMuted}
+                        />
+                        <IdeaInput
+                            placeholder="What's on your mind? Add #tags"
+                            value={text}
+                            onChangeText={setText}
+                        />
+                        {showTagSuggestions && (
+                            <View style={styles.tagSuggestionsBox}>
+                                {tagSuggestions.map(tag => (
+                                    <TouchableOpacity key={tag.id} style={styles.tagSuggestionItem} onPress={() => handleSelectTag(tag.name)}>
+                                        <Text style={styles.tagSuggestionText}>#{tag.name}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
                 )}
                 {isRecording && <Text style={{marginVertical: 20, alignSelf:'center', color: 'red'}}>Recording Audio...</Text>}
                 {isProcessingAudio && <Text style={{marginVertical: 20, alignSelf:'center', color: '#888'}}>Transcribing...</Text>}
@@ -222,7 +262,39 @@ export default function InboxScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, padding: Theme.spacing.md, backgroundColor: Theme.colors.background },
-    card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface },
+    card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface, zIndex: 10 },
+    titleInput: { 
+        fontSize: 16, 
+        fontWeight: '600', 
+        color: Theme.colors.text, 
+        marginBottom: 8, 
+        paddingBottom: 8, 
+        borderBottomWidth: 1, 
+        borderBottomColor: Theme.colors.border 
+    },
+    tagSuggestionsBox: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
+        backgroundColor: Theme.colors.surface,
+        borderRadius: Theme.borderRadius.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        ...Theme.shadows.soft,
+        zIndex: 20,
+        maxHeight: 150
+    },
+    tagSuggestionItem: {
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: Theme.colors.border
+    },
+    tagSuggestionText: {
+        fontSize: 15,
+        color: Theme.colors.primary,
+        fontWeight: '500'
+    },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
     actionButton: {
         flexDirection: 'row',

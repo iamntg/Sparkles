@@ -36,15 +36,20 @@ export default function ClustersScreen() {
                 return;
             }
 
-            // 2. Extract text for clustering
-            const ideaTexts = ideas.map(idea => idea.text || idea.title || '').filter(Boolean);
+            // 2. Extract text and metadata for clustering
+            const payload = ideas.map(idea => ({
+                text: idea.text,
+                title: idea.title,
+                tags: idea.tags || [],
+                rawText: idea.rawText || idea.text
+            }));
 
             // 3. Make POST request
             const apiUrl = process.env.EXPO_PUBLIC_AI_SERVICE_URL || 'http://localhost:3002';
             const response = await fetch(`${apiUrl}/cluster`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ideas: ideaTexts })
+                body: JSON.stringify({ ideas: payload })
             });
 
             if (!response.ok) {
@@ -66,7 +71,7 @@ export default function ClustersScreen() {
     const handleItemPress = (itemText: string) => {
         // Find matching original idea
         const match = originalIdeas.find(idea =>
-            (idea.text || idea.title || '').includes(itemText) || itemText.includes(idea.text || idea.title || '')
+            (idea.rawText || idea.text || idea.title || '').includes(itemText) || itemText.includes(idea.rawText || idea.text || idea.title || '')
         );
 
         if (match) {

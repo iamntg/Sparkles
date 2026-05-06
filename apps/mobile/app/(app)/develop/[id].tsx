@@ -50,7 +50,7 @@ export default function DevelopScreen() {
             const data = await fetchIdeaById(id);
             if (data) {
                 setIdea(data);
-                setText(data.text);
+                setText(data.rawText || data.text);
 
                 // Fetch links and linked ideas
                 const ideaLinks = await fetchLinksForIdea(id);
@@ -63,7 +63,7 @@ export default function DevelopScreen() {
                 setLinkedIdeas(validRelated);
                 const initialTexts: Record<string, string> = {};
                 validRelated.forEach(ri => {
-                    initialTexts[ri.id] = ri.text;
+                    initialTexts[ri.id] = ri.rawText || ri.text;
                 });
                 setLinkedTexts(initialTexts);
             }
@@ -79,12 +79,12 @@ export default function DevelopScreen() {
             try {
                 const savePromises = [];
                 // Save main idea
-                savePromises.push(saveIdeaChanges({ ...idea, text }));
+                savePromises.push(saveIdeaChanges({ ...idea, rawText: text }));
 
                 // Save linked ideas if they changed
                 linkedIdeas.forEach(li => {
-                    if (linkedTexts[li.id] !== li.text) {
-                        savePromises.push(saveIdeaChanges({ ...li, text: linkedTexts[li.id] }));
+                    if (linkedTexts[li.id] !== (li.rawText || li.text)) {
+                        savePromises.push(saveIdeaChanges({ ...li, rawText: linkedTexts[li.id] }));
                     }
                 });
 

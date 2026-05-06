@@ -1,7 +1,7 @@
 import { getAIProvider } from '@sparkles/ai';
 
 export const aiService = {
-  async clusterIdeas(ideas: string[]) {
+  async clusterIdeas(ideas: any[]) {
     const provider = getAIProvider();
     return await provider.clusterIdeas(ideas);
   },
