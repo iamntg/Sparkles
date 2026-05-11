@@ -81,6 +81,7 @@ export default function ConstellationScreen() {
                         key={`star_${idea.id}`}
                         x={x}
                         y={y}
+                        title={idea.title}
                         onPress={() => router.push(`/develop/${idea.id}`)}
                     />
                 );

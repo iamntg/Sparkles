@@ -1,21 +1,29 @@
 import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Text } from 'react-native';
 
-export function StarNode({ x, y, onPress }: { x: number, y: number, onPress?: () => void }) {
-    // In a real implementation inside the Constellation screen, we would use Skia.
-    // This is a placeholder standard RN component representation for fallback.
+export function StarNode({ x, y, title, onPress }: { x: number, y: number, title?: string, onPress?: () => void }) {
     return (
         <Pressable 
-            onPress={onPress} 
-            style={[styles.star, { left: x, top: y }]} 
-            hitSlop={20}
-        />
+            onPress={onPress}
+            style={[styles.container, { left: x - 46, top: y }]}
+        >
+            <View style={styles.star} />
+            {title && (
+                <Text style={styles.title} numberOfLines={1}>
+                    {title}
+                </Text>
+            )}
+        </Pressable>
     );
 }
 
 const styles = StyleSheet.create({
-    star: {
+    container: {
         position: 'absolute',
+        alignItems: 'center',
+        width: 100,
+    },
+    star: {
         width: 8,
         height: 8,
         borderRadius: 4,
@@ -23,5 +31,13 @@ const styles = StyleSheet.create({
         shadowColor: '#ffd700',
         shadowOpacity: 0.8,
         shadowRadius: 5,
+    },
+    title: {
+        marginTop: 4,
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontSize: 10,
+        textAlign: 'center',
+        fontWeight: '500',
+        width: '100%',
     }
 });

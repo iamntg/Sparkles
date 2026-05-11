@@ -20,6 +20,7 @@ export default function InboxScreen() {
     const [isProcessingAudio, setIsProcessingAudio] = useState(false);
     const [audioUri, setAudioUri] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
 
     const loadIdeas = useCallback(async () => {
@@ -140,6 +141,11 @@ export default function InboxScreen() {
         setShowModal(false);
     };
 
+    const filteredIdeas = ideas.filter(idea => 
+        (idea.title && idea.title.toLowerCase().includes(searchQuery.toLowerCase())) || 
+        (idea.text && idea.text.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
     return (
         <View style={styles.container}>
             <PaperCard style={styles.card}>
@@ -237,8 +243,24 @@ export default function InboxScreen() {
                 </View>
             </View>
 
+            <View style={styles.searchBarContainer}>
+                <Ionicons name="search-outline" size={18} color={Theme.colors.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search ideas..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholderTextColor={Theme.colors.textMuted}
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={18} color={Theme.colors.textMuted} />
+                    </TouchableOpacity>
+                )}
+            </View>
+
             <FlatList
-                data={ideas}
+                data={filteredIdeas}
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContainer}
                 renderItem={({ item }) => (
@@ -246,6 +268,12 @@ export default function InboxScreen() {
                         style={styles.listItem}
                         onPress={() => router.push(`/develop/${item.id}`)}
                     >
+                        <View style={styles.listItemHeader}>
+                            {item.title ? (
+                                <Text style={styles.listTitleText} numberOfLines={1}>{item.title}</Text>
+                            ) : null}
+                            <Text style={styles.listDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+                        </View>
                         <Text style={styles.listText} numberOfLines={2}>{item.text || 'Empty Idea'}</Text>
                     </TouchableOpacity>
                 )}
@@ -328,6 +356,25 @@ const styles = StyleSheet.create({
     clusterButtonText: { color: Theme.colors.surface, fontWeight: '600', fontSize: 13 },
     refreshIconButton: { padding: 4 },
     listContainer: { paddingBottom: 40 },
+    searchBarContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Theme.colors.surface,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: Theme.borderRadius.md,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        ...Theme.shadows.soft
+    },
+    searchIcon: { marginRight: 8 },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+        color: Theme.colors.text,
+        paddingVertical: 0
+    },
     listItem: {
         backgroundColor: Theme.colors.surface,
         padding: 16,
@@ -336,6 +383,23 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: Theme.colors.border,
         ...Theme.shadows.soft
+    },
+    listItemHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6
+    },
+    listTitleText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: Theme.colors.primary,
+        flex: 1,
+        marginRight: 8
+    },
+    listDate: {
+        fontSize: 12,
+        color: Theme.colors.textMuted
     },
     listText: { color: Theme.colors.textSecondary, fontSize: 16, lineHeight: 22 }
 });
