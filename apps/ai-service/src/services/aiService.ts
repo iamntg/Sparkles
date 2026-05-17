@@ -5,4 +5,8 @@ export const aiService = {
     const provider = getAIProvider();
     return await provider.clusterIdeas(ideas);
   },
+  async generateDailyDigest(ideas: any[]) {
+    const provider = getAIProvider();
+    return await provider.generateDailyDigest(ideas);
+  },
 };

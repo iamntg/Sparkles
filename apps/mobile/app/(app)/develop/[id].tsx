@@ -149,13 +149,13 @@ export default function DevelopScreen() {
         const all = await fetchAllIdeas();
         const existingLinks = await fetchLinksForIdea(idea.id);
         const existingLinkedIds = existingLinks.map(l => l.fromIdeaId === idea.id ? l.toIdeaId : l.fromIdeaId);
-        
+
         // Get suggested IDs from the improved AI service
         const suggestionIds = suggestLinks(idea, all);
 
         // Filter out current idea and already linked ideas
-        const availableIdeas = all.filter(i => 
-            i.id !== idea.id && 
+        const availableIdeas = all.filter(i =>
+            i.id !== idea.id &&
             !existingLinkedIds.includes(i.id)
         );
 
@@ -163,11 +163,11 @@ export default function DevelopScreen() {
         const sortedSuggestions = availableIdeas.sort((a, b) => {
             const indexA = suggestionIds.indexOf(a.id);
             const indexB = suggestionIds.indexOf(b.id);
-            
+
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
             if (indexA !== -1) return -1;
             if (indexB !== -1) return 1;
-            
+
             return b.updatedAt - a.updatedAt;
         });
 
@@ -360,27 +360,27 @@ const styles = StyleSheet.create({
     linkedCardWrapper: { marginBottom: Theme.spacing.lg },
     linkedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.sm },
     linkedTitle: { fontSize: 15, fontWeight: '600', color: Theme.colors.textSecondary },
-    unlinkButton: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        backgroundColor: Theme.colors.surface, 
-        paddingHorizontal: 10, 
-        paddingVertical: 4, 
-        borderRadius: Theme.borderRadius.md, 
-        borderWidth: 1, 
-        borderColor: Theme.colors.errorLight 
+    unlinkButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Theme.colors.surface,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: Theme.borderRadius.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.errorLight
     },
     unlinkText: { color: Theme.colors.error, fontSize: 12, marginLeft: Theme.spacing.xs, fontWeight: '600' },
     actions: { flexDirection: 'row', gap: Theme.spacing.sm, marginVertical: Theme.spacing.xl },
-    actionButton: { 
-        flex: 1, 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        backgroundColor: Theme.colors.surface, 
-        paddingVertical: Theme.spacing.sm + 4, 
-        borderRadius: Theme.borderRadius.md, 
-        borderWidth: 1, 
+    actionButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: Theme.colors.surface,
+        paddingVertical: Theme.spacing.sm + 4,
+        borderRadius: Theme.borderRadius.md,
+        borderWidth: 1,
         borderColor: Theme.colors.border,
         gap: 8,
         ...Theme.shadows.soft
@@ -389,14 +389,14 @@ const styles = StyleSheet.create({
     bottomActions: { flexDirection: 'row', gap: Theme.spacing.sm, marginTop: Theme.spacing.lg },
     cancelButton: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Theme.spacing.md },
     cancelButtonText: { color: Theme.colors.textMuted, fontWeight: '600', fontSize: 16 },
-    saveButton: { 
-        flex: 2, 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        backgroundColor: Theme.colors.primary, 
-        paddingVertical: Theme.spacing.md, 
-        borderRadius: Theme.borderRadius.lg, 
+    saveButton: {
+        flex: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: Theme.colors.primary,
+        paddingVertical: Theme.spacing.md,
+        borderRadius: Theme.borderRadius.lg,
         gap: 8,
         ...Theme.shadows.primary
     },

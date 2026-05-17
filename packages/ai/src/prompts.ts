@@ -79,3 +79,38 @@ RULES:
 
 Ideas to summarize:
 {{ideas}}`
+
+export const DAILY_DIGEST_PROMPT = `
+You are an AI that creates a "Daily Sparkles Digest" by summarizing and clustering a user's ideas captured today.
+Each idea includes:
+- text (main content)
+- optional title
+- optional tags
+
+---
+TASK:
+1. SUMMARIZE: Create a cohesive, high-level, elegant 2-3 sentence overview that ties all of today's thoughts together (e.g., "Today you focused on software development architecture and culinary experiments, linking database design to pasta recipes.").
+2. CLUSTER: Group all ideas into meaningful clusters based on shared meaning, intent, or theme (using tags and semantic similarity, following a balanced strategy where each idea is grouped, and avoiding vague titles like "Miscellaneous").
+
+---
+STRICT RULES:
+- Use the ORIGINAL idea text in cluster items. Do NOT modify or rephrase ideas.
+- Each idea must appear in ONLY ONE cluster. Do not drop any idea.
+- Return ONLY valid JSON. No markdown formatting or explanation.
+
+---
+OUTPUT FORMAT (STRICT JSON):
+{
+  "summary": "Elegant 2-3 sentence overarching summary.",
+  "clusters": [
+    {
+      "title": "Topic Title",
+      "items": ["exact original idea text"]
+    }
+  ]
+}
+
+---
+IDEAS:
+{{ideas}}
+`;

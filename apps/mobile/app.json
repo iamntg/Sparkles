@@ -6,13 +6,23 @@
     "scheme": "sparkles",
     "newArchEnabled": true,
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/images/logo.png",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#000000"
       }
+    },
+    "web": {
+      "favicon": "./assets/images/logo.png"
     },
     "plugins": [
       "expo-router",

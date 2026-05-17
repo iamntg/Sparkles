@@ -12,3 +12,15 @@ export async function getLatestReviewSession(): Promise<ReviewSession | null> {
     if (sessions.length === 0) return null;
     return sessions.sort((a, b) => b.createdAt - a.createdAt)[0];
 }
+
+export async function getReviewSessionById(id: string): Promise<ReviewSession | null> {
+    const db = await getDb();
+    const result = await db.get('review_sessions', id);
+    return result || null;
+}
+
+export async function getAllReviewSessions(): Promise<ReviewSession[]> {
+    const db = await getDb();
+    const sessions = await db.getAll('review_sessions');
+    return sessions.sort((a, b) => b.createdAt - a.createdAt);
+}

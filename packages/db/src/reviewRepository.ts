@@ -16,3 +16,20 @@ export async function getLatestReviewSession(): Promise<ReviewSession | null> {
   );
   return result || null;
 }
+
+export async function getReviewSessionById(id: string): Promise<ReviewSession | null> {
+  const db = await getDb();
+  const result = await db.getFirstAsync<ReviewSession>(
+    `SELECT * FROM review_sessions WHERE id = ?`,
+    [id]
+  );
+  return result || null;
+}
+
+export async function getAllReviewSessions(): Promise<ReviewSession[]> {
+  const db = await getDb();
+  const results = await db.getAllAsync<ReviewSession>(
+    `SELECT * FROM review_sessions ORDER BY createdAt DESC`
+  );
+  return results;
+}

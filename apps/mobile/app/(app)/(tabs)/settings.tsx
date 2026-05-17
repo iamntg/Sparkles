@@ -1,14 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, Text, Switch, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SectionHeader, Theme } from '@sparkles/ui';
 import { googleAuthService } from '@/services/googleAuthService';
 import { backupService } from '@/services/backupService';
+import { useFocusEffect } from 'expo-router';
 
 export default function SettingsScreen() {
     const [aiReviewEnabled, setAiReviewEnabled] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [authenticated, setAuthenticated] = useState(googleAuthService.isAuthenticated());
+
+    useFocusEffect(
+        useCallback(() => {
+            setAuthenticated(googleAuthService.isAuthenticated());
+        }, [])
+    );
+
+    const handleSignIn = async () => {
+        setIsProcessing(true);
+        try {
+            await googleAuthService.login();
+            setAuthenticated(true);
+            if (Platform.OS === 'web') {
+                window.alert('Successfully signed in with Google!');
+            } else {
+                Alert.alert('Success', 'Successfully signed in with Google!');
+            }
+        } catch (e: any) {
+            if (e.message !== 'Login cancelled') {
+                Alert.alert('Sign In Error', e.message);
+            }
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     const ensureAuth = async () => {
         if (!googleAuthService.isAuthenticated()) {
@@ -130,7 +156,27 @@ export default function SettingsScreen() {
                         </>
                     )}
                 </TouchableOpacity>
+
             </View>
+
+            {!authenticated && <View style={{ flex: 1 }} />}
+
+            {!authenticated && (
+                <TouchableOpacity
+                    style={[styles.loginButton, isProcessing && styles.disabledButton]}
+                    onPress={handleSignIn}
+                    disabled={isProcessing}
+                >
+                    {isProcessing ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <>
+                            <Ionicons name="logo-google" size={20} color="#fff" />
+                            <Text style={styles.loginButtonText}>Sign In with Google</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
@@ -168,5 +214,21 @@ const styles = StyleSheet.create({
     disabledButton: { opacity: 0.6 },
     secondaryButton: { backgroundColor: Theme.colors.secondary },
     buttonText: { color: Theme.colors.surface, fontSize: 16, fontWeight: '600' },
-    secondaryButtonText: { color: Theme.colors.primary }
+    secondaryButtonText: { color: Theme.colors.primary },
+    loginButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#4285F4',
+        paddingVertical: 14,
+        borderRadius: Theme.borderRadius.md,
+        marginBottom: 16,
+        gap: 10,
+        ...Theme.shadows.soft
+    },
+    loginButtonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '600'
+    }
 });

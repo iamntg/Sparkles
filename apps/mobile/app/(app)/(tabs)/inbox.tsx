@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, FlatList, TouchableOpacity, Alert, ActivityIndi
 import { Ionicons } from '@expo/vector-icons';
 import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
 import { saveNewIdea, fetchAllIdeas, searchTags } from '@/services/ideaService';
+import { digestService } from '@/services/digestService';
 import { startRecording, stopRecording, playAudio, stopAudio } from '@/services/audioService';
 import { transcribeAudio } from '@/services/transcriptionService';
 import { Idea } from '@sparkles/core';
@@ -21,11 +22,31 @@ export default function InboxScreen() {
     const [audioUri, setAudioUri] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [showDigestBanner, setShowDigestBanner] = useState(false);
+    const [todayIdeasCount, setTodayIdeasCount] = useState(0);
     const router = useRouter();
 
     const loadIdeas = useCallback(async () => {
         const data = await fetchAllIdeas();
         setIdeas(data);
+
+        // Calculate count of ideas created today
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const todayMs = startOfDay.getTime();
+        const todayIdeas = data.filter(idea => idea.createdAt >= todayMs);
+        setTodayIdeasCount(todayIdeas.length);
+
+        // Check if today's digest has already been generated
+        const todayStr = startOfDay.toISOString().split('T')[0];
+        const digestId = `digest-${todayStr}`;
+        try {
+            const existingDigest = await digestService.fetchDigestById(digestId);
+            setShowDigestBanner(todayIdeas.length >= 3 && !existingDigest);
+        } catch (err) {
+            console.error("Failed to check daily digest existence", err);
+            setShowDigestBanner(todayIdeas.length >= 3);
+        }
     }, []);
 
     useFocusEffect(
@@ -141,8 +162,8 @@ export default function InboxScreen() {
         setShowModal(false);
     };
 
-    const filteredIdeas = ideas.filter(idea => 
-        (idea.title && idea.title.toLowerCase().includes(searchQuery.toLowerCase())) || 
+    const filteredIdeas = ideas.filter(idea =>
+        (idea.title && idea.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (idea.text && idea.text.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
@@ -258,6 +279,25 @@ export default function InboxScreen() {
                     </TouchableOpacity>
                 )}
             </View>
+
+            {showDigestBanner && (
+                <TouchableOpacity
+                    style={styles.digestBanner}
+                    onPress={() => router.push('/daily-digest')}
+                    activeOpacity={0.9}
+                >
+                    <View style={styles.digestBannerIconContainer}>
+                        <Ionicons name="sparkles" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.digestBannerTextContainer}>
+                        <Text style={styles.digestBannerTitle}>Daily Sparkles Digest Ready</Text>
+                        <Text style={styles.digestBannerSubtitle}>
+                            You've captured {todayIdeasCount} ideas today. Tap to synthesize!
+                        </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" style={{ opacity: 0.8 }} />
+                </TouchableOpacity>
+            )}
 
             <FlatList
                 data={filteredIdeas}
@@ -401,5 +441,42 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Theme.colors.textMuted
     },
-    listText: { color: Theme.colors.textSecondary, fontSize: 16, lineHeight: 22 }
+    listText: { color: Theme.colors.textSecondary, fontSize: 16, lineHeight: 22 },
+    digestBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#9b59b6', // Cosmic purple background
+        padding: 16,
+        borderRadius: Theme.borderRadius.lg,
+        marginBottom: 16,
+        elevation: 4,
+        shadowColor: '#9b59b6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)'
+    },
+    digestBannerIconContainer: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12
+    },
+    digestBannerTextContainer: {
+        flex: 1
+    },
+    digestBannerTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 2
+    },
+    digestBannerSubtitle: {
+        fontSize: 13,
+        color: 'rgba(255, 255, 255, 0.9)'
+    }
 });

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import clusterRoutes from './routes/cluster';
+import digestRoutes from './routes/digest';
 
 dotenv.config();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 // Routes
 app.use('/cluster', clusterRoutes);
+app.use('/digest', digestRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', provider: process.env.AI_PROVIDER || 'openai' });
