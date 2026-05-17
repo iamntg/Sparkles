@@ -76,12 +76,13 @@ export default function ConstellationScreen() {
             {/* Stars */}
             {ideas.map((idea) => {
                 const { x, y } = getCoords(idea);
+                const displayTitle = idea.title || (idea.text ? idea.text.split('\n')[0].substring(0, 50) : 'Voice Note');
                 return (
                     <StarNode
                         key={`star_${idea.id}`}
                         x={x}
                         y={y}
-                        title={idea.title}
+                        title={displayTitle}
                         onPress={() => router.push(`/develop/${idea.id}`)}
                     />
                 );

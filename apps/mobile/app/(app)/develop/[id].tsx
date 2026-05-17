@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Text, Pressable, ScrollView, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, Pressable, ScrollView, Alert, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Idea } from '@sparkles/core';
 import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
@@ -15,6 +15,7 @@ export default function DevelopScreen() {
     const router = useRouter();
     const [idea, setIdea] = useState<Idea | null>(null);
     const [text, setText] = useState('');
+    const [title, setTitle] = useState('');
     const [linkedIdeas, setLinkedIdeas] = useState<Idea[]>([]);
     const [links, setLinks] = useState<Link[]>([]);
     const [linkedTexts, setLinkedTexts] = useState<Record<string, string>>({});
@@ -51,6 +52,7 @@ export default function DevelopScreen() {
             if (data) {
                 setIdea(data);
                 setText(data.rawText || data.text);
+                setTitle(data.title || '');
 
                 // Fetch links and linked ideas
                 const ideaLinks = await fetchLinksForIdea(id);
@@ -79,7 +81,7 @@ export default function DevelopScreen() {
             try {
                 const savePromises = [];
                 // Save main idea
-                savePromises.push(saveIdeaChanges({ ...idea, rawText: text }));
+                savePromises.push(saveIdeaChanges({ ...idea, title: title.trim(), rawText: text }));
 
                 // Save linked ideas if they changed
                 linkedIdeas.forEach(li => {
@@ -225,6 +227,13 @@ export default function DevelopScreen() {
             </View>
 
             <PaperCard>
+                <TextInput
+                    placeholder="Add a title (optional)"
+                    value={title}
+                    onChangeText={setTitle}
+                    style={styles.titleInput}
+                    placeholderTextColor={Theme.colors.textMuted}
+                />
                 <IdeaInput
                     value={text}
                     onChangeText={setText}
@@ -354,6 +363,15 @@ const styles = StyleSheet.create({
     label: { fontSize: 13, fontWeight: '700', color: Theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
     audioAction: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.primaryLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Theme.borderRadius.lg, gap: 6 },
     audioText: { color: Theme.colors.primary, fontWeight: '600', fontSize: 13 },
+    titleInput: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Theme.colors.text,
+        marginBottom: 8,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: Theme.colors.border
+    },
     inputExpanded: { minHeight: 200, fontSize: 16, color: Theme.colors.text },
     inputLinked: { minHeight: 120, fontSize: 15, color: Theme.colors.textSecondary },
     linkedSection: { marginTop: Theme.spacing.xl },

@@ -14,7 +14,7 @@ export async function saveNewIdea(text: string, opts?: { title?: string; sourceT
         text: parsed.parsedText,
         rawText: parsed.rawText,
         tags: parsed.tags,
-        title: opts?.title || (parsed.parsedText ? parsed.parsedText.split('\n')[0].substring(0, 50) : 'Voice Note'),
+        title: opts?.title || '',
         status: IdeaStatus.DRAFT,
         constellationX: Math.random() * 1000,
         constellationY: Math.random() * 1000,
