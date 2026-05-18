@@ -1,26 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, Text, FlatList, TouchableOpacity, TextInput, Modal, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
-import { saveNewIdea, fetchAllIdeas, searchTags } from '@/services/ideaService';
+import { ConfirmModal, Theme } from '@sparkles/ui';
+import { fetchAllIdeas } from '@/services/ideaService';
 import { digestService } from '@/services/digestService';
-import { startRecording, stopRecording, playAudio, stopAudio } from '@/services/audioService';
-import { transcribeAudio } from '@/services/transcriptionService';
 import { Idea } from '@sparkles/core';
 import { useRouter, useFocusEffect } from 'expo-router';
+import AddIdeaForm from '@/components/AddIdeaForm';
 
 export default function InboxScreen() {
-    const [text, setText] = useState('');
-    const [title, setTitle] = useState('');
     const [showModal, setShowModal] = useState(false);
-    const [tagSuggestions, setTagSuggestions] = useState<any[]>([]);
-    const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+    const [isAddModalVisible, setIsAddModalVisible] = useState(false);
     const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const [ideas, setIdeas] = useState<Idea[]>([]);
-    const [isRecording, setIsRecording] = useState(false);
-    const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-    const [audioUri, setAudioUri] = useState<string | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [showDigestBanner, setShowDigestBanner] = useState(false);
     const [todayIdeasCount, setTodayIdeasCount] = useState(0);
@@ -55,100 +47,10 @@ export default function InboxScreen() {
         }, [loadIdeas])
     );
 
-    useEffect(() => {
-        const match = text.match(/#([a-zA-Z0-9_]*)$/);
-        if (match) {
-            searchTags(match[1]).then(tags => {
-                setTagSuggestions(tags);
-                setShowTagSuggestions(tags.length > 0);
-            });
-        } else {
-            setShowTagSuggestions(false);
-        }
-    }, [text]);
-
-    const handleSelectTag = (tagName: string) => {
-        const newText = text.replace(/#([a-zA-Z0-9_]*)$/, `#${tagName} `);
-        setText(newText);
-        setShowTagSuggestions(false);
-    };
-
-    const handleSave = async () => {
-        if (!text.trim()) return;
-        setIsProcessingAudio(true);
-        const finalIdea = await saveNewIdea(text, { title: title.trim() || undefined });
-
-        setLastSavedId(finalIdea.id);
-        setText('');
-        setTitle('');
-        setAudioUri(null);
+    const handleSaveSuccess = (ideaId: string) => {
+        setLastSavedId(ideaId);
         setShowModal(true);
         loadIdeas();
-        setIsProcessingAudio(false);
-    };
-
-    const handleToggleRecording = async () => {
-        if (isRecording) {
-            setIsRecording(false);
-            try {
-                const uri = await stopRecording();
-                setAudioUri(uri);
-
-                // Immediately transcribe and save
-                setIsProcessingAudio(true);
-                let transcribedText = '';
-                let status = 'DONE';
-                try {
-                    transcribedText = await transcribeAudio(uri);
-                } catch (e) {
-                    status = 'FAILED';
-                    Alert.alert('Transcription Failed', 'Could not transcribe the audio. Saving with failed status.');
-                }
-
-                const finalIdea = await saveNewIdea(transcribedText, {
-                    sourceType: 'audio',
-                    audioLocalPath: uri,
-                    transcriptStatus: status
-                });
-
-                setLastSavedId(finalIdea.id);
-                setAudioUri(null);
-                setShowModal(true);
-                loadIdeas();
-            } catch (err) {
-                Alert.alert('Recording Failed', 'Failed to stop recording cleanly.');
-                setAudioUri(null);
-            } finally {
-                setIsProcessingAudio(false);
-            }
-        } else {
-            try {
-                await startRecording();
-                setIsRecording(true);
-                setAudioUri(null);
-            } catch (err) {
-                Alert.alert('Recording Failed', 'Ensure microphone permissions are granted.');
-            }
-        }
-    };
-
-    const handlePlayAudio = async () => {
-        if (!audioUri) return;
-        try {
-            await playAudio(audioUri);
-            setIsPlaying(true);
-        } catch (err) {
-            Alert.alert('Playback Failed');
-        }
-    };
-
-    const handleStopAudio = async () => {
-        try {
-            await stopAudio();
-            setIsPlaying(false);
-        } catch (err) {
-            Alert.alert('Playback Failed');
-        }
     };
 
     const handleDevelopFurther = () => {
@@ -169,81 +71,40 @@ export default function InboxScreen() {
 
     return (
         <View style={styles.container}>
-            <PaperCard style={styles.card}>
-                {!isRecording && !isProcessingAudio && !audioUri && (
-                    <View style={{ zIndex: 10 }}>
-                        <TextInput
-                            placeholder="Add a title (optional)"
-                            value={title}
-                            onChangeText={setTitle}
-                            style={styles.titleInput}
-                            placeholderTextColor={Theme.colors.textMuted}
-                        />
-                        <IdeaInput
-                            placeholder="What's on your mind? Add #tags"
-                            value={text}
-                            onChangeText={setText}
-                        />
-                        {showTagSuggestions && (
-                            <View style={styles.tagSuggestionsBox}>
-                                {tagSuggestions.map(tag => (
-                                    <TouchableOpacity key={tag.id} style={styles.tagSuggestionItem} onPress={() => handleSelectTag(tag.name)}>
-                                        <Text style={styles.tagSuggestionText}>#{tag.name}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
+            {/* Immersive Full-Screen Modal for adding an idea */}
+            <Modal
+                visible={isAddModalVisible}
+                animationType="slide"
+                transparent={false}
+                onRequestClose={() => setIsAddModalVisible(false)}
+            >
+                <SafeAreaView style={styles.modalSafeArea}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Capture Idea</Text>
+                        <TouchableOpacity 
+                            style={styles.closeButton}
+                            onPress={() => setIsAddModalVisible(false)}
+                        >
+                            <Ionicons name="close" size={24} color={Theme.colors.textSecondary} />
+                        </TouchableOpacity>
                     </View>
-                )}
-                {isRecording && <Text style={{ marginVertical: 20, alignSelf: 'center', color: 'red' }}>Recording Audio...</Text>}
-                {isProcessingAudio && <Text style={{ marginVertical: 20, alignSelf: 'center', color: '#888' }}>Transcribing...</Text>}
+                    <AddIdeaForm 
+                        onSaveSuccess={(ideaId) => {
+                            setIsAddModalVisible(false);
+                            handleSaveSuccess(ideaId);
+                        }}
+                        containerStyle={{ backgroundColor: 'transparent', padding: Theme.spacing.md, borderRadius: 0 }}
+                    />
+                </SafeAreaView>
+            </Modal>
 
-                <View style={styles.actions}>
-                    {audioUri && !isProcessingAudio ? (
-                        <>
-                            <TouchableOpacity style={styles.iconButton} onPress={handlePlayAudio}>
-                                <Ionicons name={isPlaying ? "pause-circle" : "play-circle"} size={32} color="#9b59b6" />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.iconButton} onPress={handleStopAudio}>
-                                <Ionicons name="stop-circle" size={32} color="#e74c3c" />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.actionButton, styles.primaryButton]}
-                                onPress={handleSave}
-                                disabled={isProcessingAudio}
-                            >
-                                <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
-                                <Text style={styles.buttonText}>Save Idea</Text>
-                            </TouchableOpacity>
-                        </>
-                    ) : (
-                        <>
-                            <TouchableOpacity
-                                style={[styles.actionButton, styles.primaryButton, (!text.trim() || isRecording || isProcessingAudio) && styles.disabledButton]}
-                                onPress={handleSave}
-                                disabled={(!text.trim()) || isRecording || isProcessingAudio}
-                            >
-                                <Ionicons name="send-outline" size={18} color="#fff" />
-                                <Text style={styles.buttonText}>Save</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.actionButton, isRecording ? styles.recordingButton : styles.secondaryButton]}
-                                onPress={handleToggleRecording}
-                                disabled={isProcessingAudio}
-                            >
-                                <Ionicons
-                                    name={isRecording ? "stop-circle" : "mic-outline"}
-                                    size={20}
-                                    color={isRecording ? "#fff" : "#9b59b6"}
-                                />
-                                <Text style={[styles.buttonText, { color: isRecording ? "#fff" : "#9b59b6" }]}>
-                                    {isRecording ? "Stop" : "Record"}
-                                </Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-                </View>
-            </PaperCard>
+            {/* Floating Action Button (FAB) for adding an idea */}
+            <TouchableOpacity 
+                style={styles.fabButton}
+                onPress={() => setIsAddModalVisible(true)}
+            >
+                <Ionicons name="add" size={32} color="#fff" />
+            </TouchableOpacity>
 
             <View style={styles.listHeader}>
                 <Text style={styles.listTitle}>Inbox</Text>
@@ -334,6 +195,41 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, padding: Theme.spacing.md, backgroundColor: Theme.colors.background },
     card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface, zIndex: 10 },
+    modalSafeArea: {
+        flex: 1,
+        backgroundColor: Theme.colors.background,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: Theme.spacing.md,
+        paddingTop: Theme.spacing.sm,
+        paddingBottom: Theme.spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: Theme.colors.border,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Theme.colors.text,
+    },
+    closeButton: {
+        padding: 4,
+    },
+    fabButton: {
+        position: 'absolute',
+        bottom: 30,
+        right: 20,
+        backgroundColor: Theme.colors.primary,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Theme.shadows.primary,
+        zIndex: 99,
+    },
     titleInput: {
         fontSize: 16,
         fontWeight: '600',

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, useWindowDimensions, Pressable, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, useWindowDimensions, Pressable, ActivityIndicator, TouchableOpacity, Modal, Text, SafeAreaView } from 'react-native';
 import { fetchAllIdeas } from '@/services/ideaService';
 import { fetchAllLinks } from '@/services/linkService';
 import { Idea, Link } from '@sparkles/core';
 import { useRouter } from 'expo-router';
-import { StarNode, StarLink } from '@sparkles/ui';
+import { StarNode, StarLink, ConfirmModal, Theme } from '@sparkles/ui';
 import { Ionicons } from '@expo/vector-icons';
+import AddIdeaForm from '@/components/AddIdeaForm';
 
 const PADDING = 60; // Extra padding to ensure visibility and avoid edges/tabs
 
@@ -14,7 +15,21 @@ export default function ConstellationScreen() {
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [links, setLinks] = useState<Link[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const router = useRouter();
+
+    const handleDevelopFurther = () => {
+        setShowConfirmModal(false);
+        if (lastSavedId) {
+            router.push(`/develop/${lastSavedId}`);
+        }
+    };
+
+    const handleComeBackLater = () => {
+        setShowConfirmModal(false);
+    };
 
     const loadData = async () => {
         setRefreshing(true);
@@ -100,6 +115,53 @@ export default function ConstellationScreen() {
                     <Ionicons name="refresh" size={24} color="#fff" />
                 )}
             </Pressable>
+
+            {/* Floating Action Button (FAB) for adding an idea */}
+            <TouchableOpacity 
+                style={styles.fabButton}
+                onPress={() => setIsAddModalVisible(true)}
+            >
+                <Ionicons name="add" size={32} color="#fff" />
+            </TouchableOpacity>
+
+            {/* Modal for adding an idea */}
+            <Modal
+                visible={isAddModalVisible}
+                animationType="slide"
+                transparent={false}
+                onRequestClose={() => setIsAddModalVisible(false)}
+            >
+                <SafeAreaView style={styles.modalSafeArea}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Capture Idea</Text>
+                        <TouchableOpacity 
+                            style={styles.closeButton}
+                            onPress={() => setIsAddModalVisible(false)}
+                        >
+                            <Ionicons name="close" size={24} color={Theme.colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+                    <AddIdeaForm 
+                        onSaveSuccess={(ideaId) => {
+                            setLastSavedId(ideaId);
+                            setIsAddModalVisible(false);
+                            setShowConfirmModal(true);
+                            loadData();
+                        }}
+                        containerStyle={{ backgroundColor: 'transparent', padding: Theme.spacing.md, borderRadius: 0 }}
+                    />
+                </SafeAreaView>
+            </Modal>
+
+            {/* Saved Confirmation Modal */}
+            <ConfirmModal
+                visible={showConfirmModal}
+                title="Idea Saved!"
+                confirmText="Develop further"
+                cancelText="Come back later"
+                onConfirm={handleDevelopFurther}
+                onCancel={handleComeBackLater}
+            />
         </View>
     );
 }
@@ -119,5 +181,41 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backdropFilter: 'blur(10px)',
+        zIndex: 98,
+    },
+    fabButton: {
+        position: 'absolute',
+        bottom: 30,
+        right: 20,
+        backgroundColor: Theme.colors.primary,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Theme.shadows.primary,
+        zIndex: 99,
+    },
+    modalSafeArea: {
+        flex: 1,
+        backgroundColor: Theme.colors.background,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: Theme.spacing.md,
+        paddingTop: Theme.spacing.sm,
+        paddingBottom: Theme.spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: Theme.colors.border,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Theme.colors.text,
+    },
+    closeButton: {
+        padding: 4,
     }
 });
