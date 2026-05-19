@@ -22,7 +22,7 @@ export default function DevelopScreen() {
 
     const [suggestedIdeas, setSuggestedIdeas] = useState<Idea[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [selectedSuggestion, setSelectedSuggestion] = useState<Idea | null>(null);
+    const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<string[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
@@ -182,13 +182,27 @@ export default function DevelopScreen() {
         setShowSuggestions(true);
     };
 
+    const toggleSelection = (itemId: string) => {
+        setSelectedSuggestionIds(prev => 
+            prev.includes(itemId) 
+                ? prev.filter(id => id !== itemId) 
+                : [...prev, itemId]
+        );
+    };
+
     const handleConfirmLink = async () => {
-        if (idea && selectedSuggestion) {
-            await addLink(idea.id, selectedSuggestion.id);
-            Alert.alert('Success', `Linked to: ${selectedSuggestion.title}`);
-            setSelectedSuggestion(null);
-            setShowSuggestions(false);
-            load(); // Reload to show the new link
+        if (idea && selectedSuggestionIds.length > 0) {
+            try {
+                await Promise.all(selectedSuggestionIds.map(selectedId => 
+                    addLink(idea.id, selectedId)
+                ));
+                Alert.alert('Success', `Successfully linked ${selectedSuggestionIds.length} idea(s)`);
+                setSelectedSuggestionIds([]);
+                setShowSuggestions(false);
+                load(); // Reload to show new links
+            } catch (err) {
+                Alert.alert('Error', 'Failed to save some links');
+            }
         }
     };
 
@@ -285,28 +299,40 @@ export default function DevelopScreen() {
 
             <ConfirmModal
                 visible={showSuggestions}
-                title="Link another idea"
+                title="Link ideas"
                 onConfirm={() => {
-                    if (selectedSuggestion) handleConfirmLink();
-                    else Alert.alert('Warning', 'Please select an idea first');
+                    if (selectedSuggestionIds.length > 0) handleConfirmLink();
+                    else Alert.alert('Warning', 'Please select at least one idea first');
                 }}
-                onCancel={() => setShowSuggestions(false)}
-                confirmText="Link Selected"
+                onCancel={() => {
+                    setShowSuggestions(false);
+                    setSelectedSuggestionIds([]);
+                }}
+                confirmText={`Link Selected (${selectedSuggestionIds.length})`}
             >
-                <View style={styles.suggestionsList}>
-                    {suggestedIdeas.map(item => (
-                        <Pressable
-                            key={item.id}
-                            style={[
-                                styles.suggestionItem,
-                                selectedSuggestion?.id === item.id && styles.selectedSuggestion
-                            ]}
-                            onPress={() => setSelectedSuggestion(item)}
-                        >
-                            <Text style={styles.suggestionTitle}>{item.title}</Text>
-                        </Pressable>
-                    ))}
-                </View>
+                <ScrollView style={styles.suggestionsScrollView} nestedScrollEnabled={true}>
+                    <View style={styles.suggestionsList}>
+                        {suggestedIdeas.map(item => (
+                            <Pressable
+                                key={item.id}
+                                style={[
+                                    styles.suggestionItem,
+                                    selectedSuggestionIds.includes(item.id) && styles.selectedSuggestion
+                                ]}
+                                onPress={() => toggleSelection(item.id)}
+                            >
+                                <View style={styles.suggestionContent}>
+                                    <Ionicons 
+                                        name={selectedSuggestionIds.includes(item.id) ? "checkbox" : "square-outline"} 
+                                        size={20} 
+                                        color={selectedSuggestionIds.includes(item.id) ? Theme.colors.primary : Theme.colors.textMuted} 
+                                    />
+                                    <Text style={styles.suggestionTitle}>{item.title || "Untitled Idea"}</Text>
+                                </View>
+                            </Pressable>
+                        ))}
+                    </View>
+                </ScrollView>
             </ConfirmModal>
 
             <ConfirmModal
@@ -419,10 +445,19 @@ const styles = StyleSheet.create({
         ...Theme.shadows.primary
     },
     saveButtonText: { color: Theme.colors.surface, fontWeight: '700', fontSize: 16 },
-    suggestionsList: { marginVertical: Theme.spacing.sm },
-    suggestionItem: { padding: Theme.spacing.md, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, borderRadius: Theme.borderRadius.md, marginBottom: Theme.spacing.sm },
+    suggestionsScrollView: {
+        maxHeight: 280,
+        marginVertical: Theme.spacing.sm,
+    },
+    suggestionsList: { marginVertical: Theme.spacing.xs },
+    suggestionItem: { padding: Theme.spacing.md, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, borderRadius: Theme.borderRadius.md, marginBottom: Theme.spacing.xs },
     selectedSuggestion: { backgroundColor: Theme.colors.primaryLight, borderColor: Theme.colors.primary, borderWidth: 1 },
-    suggestionTitle: { fontSize: 16, color: Theme.colors.text },
+    suggestionContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    suggestionTitle: { fontSize: 16, color: Theme.colors.text, flex: 1 },
     confirmText: { fontSize: 16, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: Theme.spacing.lg, lineHeight: 22 }
 });
 

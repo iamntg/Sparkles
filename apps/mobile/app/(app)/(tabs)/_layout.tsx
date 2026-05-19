@@ -27,20 +27,20 @@ export default function AppLayout() {
             }
         }}>
             <Tabs.Screen 
-                name="inbox" 
-                options={{ 
-                    title: 'Inbox',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="snow-outline" size={size} color={color} />
-                    )
-                }} 
-            />
-            <Tabs.Screen 
                 name="constellation" 
                 options={{ 
                     title: 'Sparkles',
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="sparkles-outline" size={size + 4} color={color} />
+                    )
+                }} 
+            />
+            <Tabs.Screen 
+                name="inbox" 
+                options={{ 
+                    title: 'Inbox',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="snow-outline" size={size} color={color} />
                     )
                 }} 
             />
