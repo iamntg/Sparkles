@@ -8,6 +8,7 @@
         "lint": "eslint \"src/**/*.ts*\""
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.54.0",
         "@sparkles/core": "workspace:*",
         "openai": "^6.34.0"
     },

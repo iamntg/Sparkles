@@ -6,11 +6,9 @@ import { fetchAllIdeas } from '@/services/ideaService';
 import { digestService } from '@/services/digestService';
 import { Idea } from '@sparkles/core';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AddIdeaForm from '@/components/AddIdeaForm';
 
 export default function InboxScreen() {
     const [showModal, setShowModal] = useState(false);
-    const [isAddModalVisible, setIsAddModalVisible] = useState(false);
     const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -71,37 +69,10 @@ export default function InboxScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Immersive Full-Screen Modal for adding an idea */}
-            <Modal
-                visible={isAddModalVisible}
-                animationType="slide"
-                transparent={false}
-                onRequestClose={() => setIsAddModalVisible(false)}
-            >
-                <SafeAreaView style={styles.modalSafeArea}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Capture Idea</Text>
-                        <TouchableOpacity 
-                            style={styles.closeButton}
-                            onPress={() => setIsAddModalVisible(false)}
-                        >
-                            <Ionicons name="close" size={24} color={Theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-                    <AddIdeaForm 
-                        onSaveSuccess={(ideaId) => {
-                            setIsAddModalVisible(false);
-                            handleSaveSuccess(ideaId);
-                        }}
-                        containerStyle={{ backgroundColor: 'transparent', padding: Theme.spacing.md, borderRadius: 0 }}
-                    />
-                </SafeAreaView>
-            </Modal>
-
             {/* Floating Action Button (FAB) for adding an idea */}
             <TouchableOpacity 
                 style={styles.fabButton}
-                onPress={() => setIsAddModalVisible(true)}
+                onPress={() => router.push('/add')}
             >
                 <Ionicons name="add" size={32} color="#fff" />
             </TouchableOpacity>
@@ -195,28 +166,6 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, padding: Theme.spacing.md, backgroundColor: Theme.colors.background },
     card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface, zIndex: 10 },
-    modalSafeArea: {
-        flex: 1,
-        backgroundColor: Theme.colors.background,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: Theme.spacing.md,
-        paddingTop: Theme.spacing.sm,
-        paddingBottom: Theme.spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Theme.colors.border,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: Theme.colors.text,
-    },
-    closeButton: {
-        padding: 4,
-    },
     fabButton: {
         position: 'absolute',
         bottom: 30,

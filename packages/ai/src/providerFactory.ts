@@ -1,5 +1,6 @@
 import { AIProvider } from './types';
 import { OpenAIProvider } from './providers/openaiProvider';
+import { ClaudeProvider } from './providers/claudeProvider';
 
 export function getAIProvider(): AIProvider {
   const providerType = process.env.AI_PROVIDER || 'openai';
@@ -7,7 +8,8 @@ export function getAIProvider(): AIProvider {
   switch (providerType.toLowerCase()) {
     case 'openai':
       return new OpenAIProvider();
-    // Case for other providers (e.g., 'claude') can be added here
+    case 'claude':
+      return new ClaudeProvider();
     default:
       console.warn(`Unsupported AI provider: ${providerType}. Falling back to OpenAI.`);
       return new OpenAIProvider();

@@ -6,7 +6,6 @@ import { Idea, Link } from '@sparkles/core';
 import { useRouter } from 'expo-router';
 import { StarNode, StarLink, ConfirmModal, Theme } from '@sparkles/ui';
 import { Ionicons } from '@expo/vector-icons';
-import AddIdeaForm from '@/components/AddIdeaForm';
 
 const PADDING = 60; // Extra padding to ensure visibility and avoid edges/tabs
 
@@ -15,7 +14,6 @@ export default function ConstellationScreen() {
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [links, setLinks] = useState<Link[]>([]);
     const [refreshing, setRefreshing] = useState(false);
-    const [isAddModalVisible, setIsAddModalVisible] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [lastSavedId, setLastSavedId] = useState<string | null>(null);
     const router = useRouter();
@@ -119,39 +117,10 @@ export default function ConstellationScreen() {
             {/* Floating Action Button (FAB) for adding an idea */}
             <TouchableOpacity 
                 style={styles.fabButton}
-                onPress={() => setIsAddModalVisible(true)}
+                onPress={() => router.push('/add')}
             >
                 <Ionicons name="add" size={32} color="#fff" />
             </TouchableOpacity>
-
-            {/* Modal for adding an idea */}
-            <Modal
-                visible={isAddModalVisible}
-                animationType="slide"
-                transparent={false}
-                onRequestClose={() => setIsAddModalVisible(false)}
-            >
-                <SafeAreaView style={styles.modalSafeArea}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Capture Idea</Text>
-                        <TouchableOpacity 
-                            style={styles.closeButton}
-                            onPress={() => setIsAddModalVisible(false)}
-                        >
-                            <Ionicons name="close" size={24} color={Theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-                    <AddIdeaForm 
-                        onSaveSuccess={(ideaId) => {
-                            setLastSavedId(ideaId);
-                            setIsAddModalVisible(false);
-                            setShowConfirmModal(true);
-                            loadData();
-                        }}
-                        containerStyle={{ backgroundColor: 'transparent', padding: Theme.spacing.md, borderRadius: 0 }}
-                    />
-                </SafeAreaView>
-            </Modal>
 
             {/* Saved Confirmation Modal */}
             <ConfirmModal
@@ -196,26 +165,9 @@ const styles = StyleSheet.create({
         ...Theme.shadows.primary,
         zIndex: 99,
     },
-    modalSafeArea: {
-        flex: 1,
-        backgroundColor: Theme.colors.background,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: Theme.spacing.md,
-        paddingTop: Theme.spacing.sm,
-        paddingBottom: Theme.spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Theme.colors.border,
-    },
     modalTitle: {
         fontSize: 18,
         fontWeight: 'bold',
         color: Theme.colors.text,
-    },
-    closeButton: {
-        padding: 4,
     }
 });
