@@ -1,11 +1,12 @@
 import { Stack } from 'expo-router';
+import { Theme } from '@sparkles/ui';
 
 export default function AppGroupLayout() {
     return (
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Theme.colors.background } }}>
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="add" options={{ presentation: 'fullScreenModal' }} />
-            <Stack.Screen name="develop/[id]" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="add" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+            <Stack.Screen name="develop/[id]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
         </Stack>
     );
 }

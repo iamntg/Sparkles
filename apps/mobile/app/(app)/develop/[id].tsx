@@ -1,37 +1,104 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Text, Pressable, ScrollView, Alert, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Idea } from '@sparkles/core';
-import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
-import { addLink, fetchLinksForIdea, removeLink, removeLinksByIdea } from '@/services/linkService';
-import { playAudio, stopAudio } from '@/services/audioService';
-import { IdeaInput, PaperCard, ConfirmModal, Theme } from '@sparkles/ui';
-import { suggestLinks } from '@sparkles/ai';
-import { Link } from '@sparkles/core';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform } from 'react-native';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Idea, Link } from '@sparkles/core';
+import { suggestLinks } from '@sparkles/ai';
+import { Theme } from '@sparkles/ui';
+import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
+import { addLink, fetchLinksForIdea, removeLinksByIdea } from '@/services/linkService';
+import { playAudio, stopAudio } from '@/services/audioService';
+import { CosmicBackground } from '@/components/CosmicBackground';
+
+const DAY = 86400000;
+
+function timeAgo(ts: number): string {
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'JUST NOW';
+    if (diff < DAY) {
+        const hrs = Math.floor(diff / 3600000);
+        if (hrs >= 1) return `${hrs} HR${hrs > 1 ? 'S' : ''} AGO`;
+        return `${Math.max(1, Math.floor(diff / 60000))} MIN AGO`;
+    }
+    if (diff < 2 * DAY) return 'YESTERDAY';
+    const days = Math.floor(diff / DAY);
+    if (days < 7) return `${days} DAYS AGO`;
+    return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+}
+
+function shortText(t: string, n = 40) {
+    const s = (t || '').replace(/\n/g, ' ').trim();
+    return s.length > n ? s.slice(0, n - 1).trim() + '…' : s || 'Voice note';
+}
 
 export default function DevelopScreen() {
-    const { id } = useLocalSearchParams();
+    const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
-    const [idea, setIdea] = useState<Idea | null>(null);
-    const [text, setText] = useState('');
-    const [title, setTitle] = useState('');
-    const [linkedIdeas, setLinkedIdeas] = useState<Idea[]>([]);
-    const [links, setLinks] = useState<Link[]>([]);
-    const [linkedTexts, setLinkedTexts] = useState<Record<string, string>>({});
+    const insets = useSafeAreaInsets();
 
-    const [suggestedIdeas, setSuggestedIdeas] = useState<Idea[]>([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<string[]>([]);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
-    const [ideaToUnlink, setIdeaToUnlink] = useState<string | null>(null);
+    const [idea, setIdea] = useState<Idea | null>(null);
+    const [detailNum, setDetailNum] = useState('01');
+    const [links, setLinks] = useState<Link[]>([]);
+    const [linkedIdeas, setLinkedIdeas] = useState<Idea[]>([]);
+    const [suggestions, setSuggestions] = useState<Idea[]>([]);
+
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
     const [isPlaying, setIsPlaying] = useState(false);
+
+    // Link picker overlay
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerOptions, setPickerOptions] = useState<Idea[]>([]);
+    const [selected, setSelected] = useState<string[]>([]);
+
+    const load = useCallback(async () => {
+        if (!id) return;
+        const [data, all] = await Promise.all([fetchIdeaById(id), fetchAllIdeas()]);
+        if (!data) return;
+        setIdea(data);
+        setDraft(data.rawText || data.text);
+
+        // SPARK number = 1-based position by creation order
+        const ordered = [...all].sort((a, b) => a.createdAt - b.createdAt);
+        const pos = ordered.findIndex(i => i.id === data.id);
+        setDetailNum(String(pos + 1).padStart(2, '0'));
+
+        const ideaLinks = await fetchLinksForIdea(id);
+        setLinks(ideaLinks);
+        const linkedIds = ideaLinks.map(l => (l.fromIdeaId === id ? l.toIdeaId : l.fromIdeaId));
+        setLinkedIdeas(all.filter(i => linkedIds.includes(i.id)));
+
+        // "Might connect" — top scored suggestions not already linked
+        const suggestedIds = suggestLinks(data, all);
+        const sugg = suggestedIds
+            .filter(sid => !linkedIds.includes(sid) && sid !== id)
+            .map(sid => all.find(i => i.id === sid))
+            .filter((i): i is Idea => !!i)
+            .slice(0, 3);
+        setSuggestions(sugg);
+    }, [id]);
+
+    useFocusEffect(
+        useCallback(() => {
+            load();
+        }, [load])
+    );
+
+    const linkCount = links.length;
+
+    const brightness = (() => {
+        if (!idea) return 0.3;
+        const ageDays = (Date.now() - idea.createdAt) / DAY;
+        const age = ageDays < 0.05 ? 1 : ageDays < 1 ? 0.8 : ageDays < 7 ? 0.55 : 0.4;
+        const b = (0.3 + linkCount * 0.16) * (0.55 + age * 0.45);
+        return Math.max(0.16, Math.min(1, b));
+    })();
+    const brightLabel = brightness >= 0.75 ? 'GLOWING' : brightness >= 0.5 ? 'STEADY' : brightness >= 0.3 ? 'DRIFTING' : 'FADING';
 
     const toggleAudio = async () => {
         if (!idea?.audioLocalPath) return;
-
         try {
             if (isPlaying) {
                 await stopAudio();
@@ -40,424 +107,372 @@ export default function DevelopScreen() {
                 await playAudio(idea.audioLocalPath);
                 setIsPlaying(true);
             }
-        } catch (err) {
-            Alert.alert("Error", "Failed to play audio");
+        } catch {
+            Alert.alert('Error', 'Failed to play audio');
         }
     };
 
-
-    const load = async () => {
-        if (typeof id === 'string') {
-            const data = await fetchIdeaById(id);
-            if (data) {
-                setIdea(data);
-                setText(data.rawText || data.text);
-                setTitle(data.title || '');
-
-                // Fetch links and linked ideas
-                const ideaLinks = await fetchLinksForIdea(id);
-                setLinks(ideaLinks);
-
-                const relatedIds = ideaLinks.map(l => l.fromIdeaId === id ? l.toIdeaId : l.fromIdeaId);
-                const related = await Promise.all(relatedIds.map(rid => fetchIdeaById(rid)));
-                const validRelated = related.filter((r): r is Idea => r !== null);
-
-                setLinkedIdeas(validRelated);
-                const initialTexts: Record<string, string> = {};
-                validRelated.forEach(ri => {
-                    initialTexts[ri.id] = ri.rawText || ri.text;
-                });
-                setLinkedTexts(initialTexts);
-            }
-        }
-    };
-
-    useEffect(() => {
-        load();
-    }, [id]);
-
-    const handleSave = async () => {
-        if (idea) {
-            try {
-                const savePromises = [];
-                // Save main idea
-                savePromises.push(saveIdeaChanges({ ...idea, title: title.trim(), rawText: text }));
-
-                // Save linked ideas if they changed
-                linkedIdeas.forEach(li => {
-                    if (linkedTexts[li.id] !== (li.rawText || li.text)) {
-                        savePromises.push(saveIdeaChanges({ ...li, rawText: linkedTexts[li.id] }));
-                    }
-                });
-
-                await Promise.all(savePromises);
-                router.back();
-            } catch (err) {
-                Alert.alert('Error', 'Failed to save changes');
-            }
-        }
-    };
-
-    const handleDeleteMainIdea = () => {
+    const handleDevelop = async () => {
         if (!idea) return;
-        setShowDeleteConfirm(true);
-    };
-
-    const executeDelete = async () => {
-        if (!idea) return;
-        setIsDeleting(true);
-        try {
-            await removeLinksByIdea(idea.id);
-            await deleteIdea(idea.id);
-            setShowDeleteConfirm(false);
-            router.back();
-        } catch (err) {
-            Alert.alert("Error", "Failed to delete idea");
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-
-    const handleUnlink = (linkedIdeaId: string) => {
-        setIdeaToUnlink(linkedIdeaId);
-        setShowUnlinkConfirm(true);
-    };
-
-    const executeUnlink = async () => {
-        if (!idea || !ideaToUnlink) return;
-
-        const linkToRemove = links.find(l =>
-            (l.fromIdeaId === idea.id && l.toIdeaId === ideaToUnlink) ||
-            (l.fromIdeaId === ideaToUnlink && l.toIdeaId === idea.id)
-        );
-
-        if (!linkToRemove) return;
-
-        try {
-            await removeLink(linkToRemove.id);
-            setShowUnlinkConfirm(false);
-            setIdeaToUnlink(null);
-            await load(); // Reload to update UI
-        } catch (err) {
-            Alert.alert("Error", "Failed to remove link");
-        }
-    };
-
-
-    const handleSuggestLinks = async () => {
-        if (!idea) return;
-
-        const all = await fetchAllIdeas();
-        const existingLinks = await fetchLinksForIdea(idea.id);
-        const existingLinkedIds = existingLinks.map(l => l.fromIdeaId === idea.id ? l.toIdeaId : l.fromIdeaId);
-
-        // Get suggested IDs from the improved AI service
-        const suggestionIds = suggestLinks(idea, all);
-
-        // Filter out current idea and already linked ideas
-        const availableIdeas = all.filter(i =>
-            i.id !== idea.id &&
-            !existingLinkedIds.includes(i.id)
-        );
-
-        // Sort: Suggested ideas first, then the rest by recency
-        const sortedSuggestions = availableIdeas.sort((a, b) => {
-            const indexA = suggestionIds.indexOf(a.id);
-            const indexB = suggestionIds.indexOf(b.id);
-
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-
-            return b.updatedAt - a.updatedAt;
-        });
-
-        if (sortedSuggestions.length === 0) {
-            Alert.alert('Info', 'No other ideas found to link.');
+        if (!editing) {
+            setEditing(true);
             return;
         }
-
-        setSuggestedIdeas(sortedSuggestions);
-        setShowSuggestions(true);
-    };
-
-    const toggleSelection = (itemId: string) => {
-        setSelectedSuggestionIds(prev => 
-            prev.includes(itemId) 
-                ? prev.filter(id => id !== itemId) 
-                : [...prev, itemId]
-        );
-    };
-
-    const handleConfirmLink = async () => {
-        if (idea && selectedSuggestionIds.length > 0) {
-            try {
-                await Promise.all(selectedSuggestionIds.map(selectedId => 
-                    addLink(idea.id, selectedId)
-                ));
-                Alert.alert('Success', `Successfully linked ${selectedSuggestionIds.length} idea(s)`);
-                setSelectedSuggestionIds([]);
-                setShowSuggestions(false);
-                load(); // Reload to show new links
-            } catch (err) {
-                Alert.alert('Error', 'Failed to save some links');
-            }
+        try {
+            await saveIdeaChanges({ ...idea, rawText: draft });
+            setEditing(false);
+            await load();
+        } catch {
+            Alert.alert('Error', 'Failed to save changes');
         }
     };
 
-    const updateLinkedText = (id: string, newText: string) => {
-        setLinkedTexts(prev => ({ ...prev, [id]: newText }));
+    const handleDiscard = () => {
+        if (!idea) return;
+        const doDelete = async () => {
+            await removeLinksByIdea(idea.id);
+            await deleteIdea(idea.id);
+            router.back();
+        };
+        if (Platform.OS === 'web') {
+            if (window.confirm('Discard this spark? Linked sparks are kept.')) doDelete();
+        } else {
+            Alert.alert('Discard spark', 'This spark will be removed. Linked sparks are kept.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Discard', style: 'destructive', onPress: doDelete },
+            ]);
+        }
     };
 
-    if (!idea) return <View style={styles.container}><Text>Loading...</Text></View>;
+    const linkSuggestion = async (sid: string) => {
+        if (!idea) return;
+        await addLink(idea.id, sid);
+        await load();
+    };
+
+    const openPicker = async () => {
+        if (!idea) return;
+        const all = await fetchAllIdeas();
+        const linkedIds = links.map(l => (l.fromIdeaId === idea.id ? l.toIdeaId : l.fromIdeaId));
+        setPickerOptions(all.filter(i => i.id !== idea.id && !linkedIds.includes(i.id)));
+        setSelected([]);
+        setPickerOpen(true);
+    };
+
+    const toggleSelected = (sid: string) =>
+        setSelected(prev => (prev.includes(sid) ? prev.filter(x => x !== sid) : [...prev, sid]));
+
+    const saveLinks = async () => {
+        if (!idea || selected.length === 0) {
+            setPickerOpen(false);
+            return;
+        }
+        await Promise.all(selected.map(sid => addLink(idea.id, sid)));
+        setPickerOpen(false);
+        await load();
+    };
+
+    if (!idea) {
+        return <View style={styles.container}><CosmicBackground starCount={40} /></View>;
+    }
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-            <View style={styles.headerRow}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="chevron-back" size={28} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.header}>Develop</Text>
-                <TouchableOpacity onPress={handleDeleteMainIdea} disabled={isDeleting} style={styles.deleteButton}>
-                    {isDeleting ? (
-                        <ActivityIndicator size="small" color="#ef4444" />
+        <View style={styles.container}>
+            <CosmicBackground starCount={55} />
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 26, paddingBottom: 24, flexGrow: 1 }}
+            >
+                <Pressable onPress={() => router.back()} style={styles.iconBtn}>
+                    <Ionicons name="chevron-back" size={18} color="#cfcadd" />
+                </Pressable>
+
+                <View style={styles.body}>
+                    <View style={styles.bigDot} />
+
+                    <View style={styles.sparkMetaRow}>
+                        <Text style={styles.sparkMeta}>SPARK {detailNum} · {timeAgo(idea.createdAt)}</Text>
+                        {!!idea.audioLocalPath && (
+                            <Pressable onPress={toggleAudio} style={styles.listenBtn} hitSlop={8}>
+                                <Ionicons name={isPlaying ? 'stop' : 'play'} size={12} color={Theme.colors.amber} />
+                                <Text style={styles.listenText}>{isPlaying ? 'STOP' : 'LISTEN'}</Text>
+                            </Pressable>
+                        )}
+                    </View>
+
+                    {editing ? (
+                        <TextInput
+                            value={draft}
+                            onChangeText={setDraft}
+                            multiline
+                            autoFocus
+                            style={styles.bigTextInput}
+                            placeholder="What's on your mind?"
+                            placeholderTextColor={Theme.colors.textFaint}
+                        />
                     ) : (
-                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                        <Text style={styles.bigText}>{idea.text || idea.rawText || 'Voice note'}</Text>
                     )}
-                </TouchableOpacity>
-            </View>
 
-            <View style={styles.labelRow}>
-                <Text style={styles.label}>Main Idea</Text>
-                {idea.audioLocalPath && (
-                    <TouchableOpacity onPress={toggleAudio} style={styles.audioAction}>
-                        <Ionicons name={isPlaying ? "stop-circle" : "play-circle"} size={22} color="#9b59b6" />
-                        <Text style={styles.audioText}>
-                            {isPlaying ? "Stop" : "Listen"}
-                        </Text>
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            <PaperCard>
-                <TextInput
-                    placeholder="Add a title (optional)"
-                    value={title}
-                    onChangeText={setTitle}
-                    style={styles.titleInput}
-                    placeholderTextColor={Theme.colors.textMuted}
-                />
-                <IdeaInput
-                    value={text}
-                    onChangeText={setText}
-                    style={styles.inputExpanded}
-                />
-            </PaperCard>
-
-            {linkedIdeas.length > 0 && (
-                <View style={styles.linkedSection}>
-                    <Text style={styles.label}>Linked Ideas</Text>
-                    {linkedIdeas.map(li => (
-                        <View key={li.id} style={styles.linkedCardWrapper}>
-                            <View style={styles.linkedHeader}>
-                                <Text style={styles.linkedTitle}>{li.title}</Text>
-                                <Pressable
-                                    onPress={() => handleUnlink(li.id)}
-                                    style={styles.unlinkButton}
-                                    hitSlop={10}
-                                >
-                                    <Ionicons name="link-outline" size={16} color="#ef4444" />
-                                    <Text style={styles.unlinkText}>Unlink</Text>
-                                </Pressable>
-                            </View>
-                            <PaperCard>
-                                <IdeaInput
-                                    value={linkedTexts[li.id]}
-                                    onChangeText={(val) => updateLinkedText(li.id, val)}
-                                    style={styles.inputLinked}
-                                />
-                            </PaperCard>
+                    {/* Brightness */}
+                    <View style={styles.brightRow}>
+                        <View style={styles.brightTrack}>
+                            <LinearGradient
+                                colors={[Theme.colors.gold, Theme.colors.amber]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={[styles.brightFill, { width: `${Math.round(brightness * 100)}%` }]}
+                            />
                         </View>
-                    ))}
+                        <Text style={styles.brightLabel}>{brightLabel}</Text>
+                    </View>
+                    <Text style={styles.brightCaption}>It brightens each time you return — no pressure, just light.</Text>
+
+                    {/* Linked sparks */}
+                    {linkedIdeas.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionLabel}>LINKED SPARKS · {linkCount}</Text>
+                            <View style={styles.chipWrap}>
+                                {linkedIdeas.map(li => (
+                                    <Pressable key={li.id} style={styles.linkedChip} onPress={() => router.push(`/develop/${li.id}`)}>
+                                        <View style={styles.lavDot} />
+                                        <Text style={styles.linkedChipText} numberOfLines={1}>{shortText(li.text || li.title)}</Text>
+                                    </Pressable>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Might connect */}
+                    {!editing && suggestions.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionLabel, { color: Theme.colors.primary }]}>✦ MIGHT CONNECT</Text>
+                            <View style={{ gap: 9 }}>
+                                {suggestions.map(sg => (
+                                    <View key={sg.id} style={styles.suggestRow}>
+                                        <Pressable style={{ flex: 1, minWidth: 0 }} onPress={() => router.push(`/develop/${sg.id}`)}>
+                                            <Text style={styles.suggestText} numberOfLines={1}>{shortText(sg.text || sg.title, 44)}</Text>
+                                            <Text style={styles.suggestReason}>Shares language with this spark</Text>
+                                        </Pressable>
+                                        <Pressable style={styles.linkBtn} onPress={() => linkSuggestion(sg.id)}>
+                                            <Ionicons name="link-outline" size={12} color={Theme.colors.background} />
+                                            <Text style={styles.linkBtnText}>LINK</Text>
+                                        </Pressable>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+                </View>
+
+                {/* Bottom actions */}
+                <View style={styles.actions}>
+                    <Pressable style={[styles.action, styles.actionGold]} onPress={handleDevelop}>
+                        <Ionicons name={editing ? 'checkmark' : 'create-outline'} size={20} color={Theme.colors.gold} />
+                        <Text style={[styles.actionLabel, { color: Theme.colors.gold }]}>{editing ? 'SAVE' : 'DEVELOP'}</Text>
+                    </Pressable>
+                    <Pressable style={[styles.action, styles.actionLavender]} onPress={openPicker}>
+                        <Ionicons name="link-outline" size={20} color={Theme.colors.primary} />
+                        <Text style={[styles.actionLabel, { color: Theme.colors.primary }]}>LINK</Text>
+                    </Pressable>
+                    <Pressable style={[styles.action, styles.actionGhost]} onPress={handleDiscard}>
+                        <Ionicons name="trash-outline" size={20} color="#d98a8a" />
+                        <Text style={[styles.actionLabel, { color: '#d98a8a' }]}>DISCARD</Text>
+                    </Pressable>
+                </View>
+            </ScrollView>
+
+            {/* Link picker overlay */}
+            {pickerOpen && (
+                <View style={[StyleSheet.absoluteFill, styles.pickerOverlay]}>
+                    <CosmicBackground starCount={40} amberGlow={false} />
+                    <View style={{ flex: 1, paddingTop: insets.top + 16 }}>
+                        <View style={styles.pickerHeader}>
+                            <Pressable onPress={() => setPickerOpen(false)} style={styles.iconBtn}>
+                                <Ionicons name="close" size={16} color="#cfcadd" />
+                            </Pressable>
+                            <Text style={styles.pickerTitle}>LINK SPARKS</Text>
+                            <View style={{ width: 38 }} />
+                        </View>
+                        <Text style={styles.pickerSub}>Connect this spark to others in your cosmos.</Text>
+
+                        <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 12, paddingTop: 4 }}>
+                            {pickerOptions.length === 0 && (
+                                <Text style={styles.pickerEmpty}>No other sparks to link yet.</Text>
+                            )}
+                            {pickerOptions.map(opt => {
+                                const on = selected.includes(opt.id);
+                                return (
+                                    <Pressable
+                                        key={opt.id}
+                                        onPress={() => toggleSelected(opt.id)}
+                                        style={[styles.pickerRow, on && styles.pickerRowOn]}
+                                    >
+                                        <View style={styles.goldDot} />
+                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                            <Text style={styles.pickerRowText} numberOfLines={1}>{shortText(opt.text || opt.title, 44)}</Text>
+                                            <Text style={styles.pickerRowTime}>{timeAgo(opt.createdAt)}</Text>
+                                        </View>
+                                        <View style={[styles.check, on && styles.checkOn]}>
+                                            {on && <Ionicons name="checkmark" size={13} color={Theme.colors.background} />}
+                                        </View>
+                                    </Pressable>
+                                );
+                            })}
+                        </ScrollView>
+
+                        <View style={{ paddingHorizontal: 26, paddingBottom: insets.bottom + 24, paddingTop: 12 }}>
+                            <Pressable onPress={saveLinks} style={styles.saveLinksBtn}>
+                                <LinearGradient
+                                    colors={[Theme.colors.primary, Theme.colors.primaryDeep]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={styles.saveLinksGrad}
+                                >
+                                    <Text style={styles.saveLinksText}>
+                                        {selected.length > 0 ? `LINK ${selected.length} SPARK${selected.length > 1 ? 'S' : ''}` : 'DONE'}
+                                    </Text>
+                                </LinearGradient>
+                            </Pressable>
+                        </View>
+                    </View>
                 </View>
             )}
-
-            <View style={styles.actions}>
-                <TouchableOpacity style={styles.actionButton} onPress={handleSuggestLinks}>
-                    <Ionicons name="git-network-outline" size={20} color="#9b59b6" />
-                    <Text style={styles.actionButtonText}>Link another</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: '#f0f0f0' }]}
-                    onPress={() => Alert.alert('Mock', 'Review Ideas mock')}
-                >
-                    <Ionicons name="checkmark-done-outline" size={20} color="#666" />
-                    <Text style={[styles.actionButtonText, { color: '#666' }]}>Review</Text>
-                </TouchableOpacity>
-            </View>
-
-            <ConfirmModal
-                visible={showSuggestions}
-                title="Link ideas"
-                onConfirm={() => {
-                    if (selectedSuggestionIds.length > 0) handleConfirmLink();
-                    else Alert.alert('Warning', 'Please select at least one idea first');
-                }}
-                onCancel={() => {
-                    setShowSuggestions(false);
-                    setSelectedSuggestionIds([]);
-                }}
-                confirmText={`Link Selected (${selectedSuggestionIds.length})`}
-            >
-                <ScrollView style={styles.suggestionsScrollView} nestedScrollEnabled={true}>
-                    <View style={styles.suggestionsList}>
-                        {suggestedIdeas.map(item => (
-                            <Pressable
-                                key={item.id}
-                                style={[
-                                    styles.suggestionItem,
-                                    selectedSuggestionIds.includes(item.id) && styles.selectedSuggestion
-                                ]}
-                                onPress={() => toggleSelection(item.id)}
-                            >
-                                <View style={styles.suggestionContent}>
-                                    <Ionicons 
-                                        name={selectedSuggestionIds.includes(item.id) ? "checkbox" : "square-outline"} 
-                                        size={20} 
-                                        color={selectedSuggestionIds.includes(item.id) ? Theme.colors.primary : Theme.colors.textMuted} 
-                                    />
-                                    <Text style={styles.suggestionTitle}>{item.title || "Untitled Idea"}</Text>
-                                </View>
-                            </Pressable>
-                        ))}
-                    </View>
-                </ScrollView>
-            </ConfirmModal>
-
-            <ConfirmModal
-                visible={showDeleteConfirm}
-                title="Delete Idea"
-                onConfirm={executeDelete}
-                onCancel={() => setShowDeleteConfirm(false)}
-                confirmText="Delete"
-                cancelText="Cancel"
-            >
-                <Text style={styles.confirmText}>
-                    Are you sure you want to delete this idea and all its links? The linked cards will NOT be deleted.
-                </Text>
-            </ConfirmModal>
-
-            <ConfirmModal
-                visible={showUnlinkConfirm}
-                title="Remove Link"
-                onConfirm={executeUnlink}
-                onCancel={() => {
-                    setShowUnlinkConfirm(false);
-                    setIdeaToUnlink(null);
-                }}
-                confirmText="Unlink"
-                cancelText="Cancel"
-            >
-                <Text style={styles.confirmText}>
-                    Are you sure you want to remove the link between these ideas? Both ideas will be kept.
-                </Text>
-            </ConfirmModal>
-
-
-            <View style={styles.bottomActions}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-                    <Text style={styles.cancelButtonText}>Discard</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                    <Ionicons name="checkmark" size={20} color="#fff" />
-                    <Text style={styles.saveButtonText}>Save Changes</Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Theme.colors.background },
-    contentContainer: { padding: Theme.spacing.md, paddingTop: Theme.spacing.md, paddingBottom: Theme.spacing.header },
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.lg },
-    backButton: { padding: Theme.spacing.xs, marginLeft: -Theme.spacing.sm },
-    header: { fontSize: 24, fontWeight: 'bold', color: Theme.colors.text },
-    deleteButton: { padding: Theme.spacing.xs },
-    labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.sm, marginTop: Theme.spacing.md },
-    label: { fontSize: 13, fontWeight: '700', color: Theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
-    audioAction: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.primaryLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Theme.borderRadius.lg, gap: 6 },
-    audioText: { color: Theme.colors.primary, fontWeight: '600', fontSize: 13 },
-    titleInput: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: Theme.colors.text,
-        marginBottom: 8,
-        paddingBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: Theme.colors.border
-    },
-    inputExpanded: { minHeight: 200, fontSize: 16, color: Theme.colors.text },
-    inputLinked: { minHeight: 120, fontSize: 15, color: Theme.colors.textSecondary },
-    linkedSection: { marginTop: Theme.spacing.xl },
-    linkedCardWrapper: { marginBottom: Theme.spacing.lg },
-    linkedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.sm },
-    linkedTitle: { fontSize: 15, fontWeight: '600', color: Theme.colors.textSecondary },
-    unlinkButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Theme.colors.surface,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: Theme.borderRadius.md,
+    iconBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: 'rgba(255,255,255,0.07)',
         borderWidth: 1,
-        borderColor: Theme.colors.errorLight
-    },
-    unlinkText: { color: Theme.colors.error, fontSize: 12, marginLeft: Theme.spacing.xs, fontWeight: '600' },
-    actions: { flexDirection: 'row', gap: Theme.spacing.sm, marginVertical: Theme.spacing.xl },
-    actionButton: {
-        flex: 1,
-        flexDirection: 'row',
+        borderColor: 'rgba(255,255,255,0.1)',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: Theme.colors.surface,
-        paddingVertical: Theme.spacing.sm + 4,
-        borderRadius: Theme.borderRadius.md,
-        borderWidth: 1,
-        borderColor: Theme.colors.border,
+    },
+    body: { flex: 1, justifyContent: 'center', paddingVertical: 24 },
+    bigDot: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: Theme.colors.gold,
+        shadowColor: Theme.colors.gold,
+        shadowOpacity: 0.6,
+        shadowRadius: 22,
+        shadowOffset: { width: 0, height: 0 },
+        marginBottom: 24,
+    },
+    sparkMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    sparkMeta: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: Theme.colors.amber },
+    listenBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    listenText: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1, color: Theme.colors.amber },
+
+    bigText: { fontFamily: Theme.fonts.semibold, fontSize: 27, lineHeight: 38, color: Theme.colors.text, letterSpacing: -0.3 },
+    bigTextInput: { fontFamily: Theme.fonts.semibold, fontSize: 27, lineHeight: 38, color: Theme.colors.text, letterSpacing: -0.3, padding: 0, textAlignVertical: 'top' },
+
+    brightRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 24 },
+    brightTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.07)', overflow: 'hidden' },
+    brightFill: { height: 5, borderRadius: 3 },
+    brightLabel: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1, color: Theme.colors.label },
+    brightCaption: { fontFamily: Theme.fonts.regular, fontSize: 11, color: '#6b6680', marginTop: 8 },
+
+    section: { marginTop: 26 },
+    sectionLabel: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: Theme.colors.label, marginBottom: 12 },
+    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    linkedChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
-        ...Theme.shadows.soft
+        maxWidth: '100%',
+        paddingHorizontal: 13,
+        paddingVertical: 9,
+        borderRadius: 20,
+        backgroundColor: 'rgba(176,130,255,0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(176,130,255,0.22)',
     },
-    actionButtonText: { color: Theme.colors.primary, fontWeight: '600', fontSize: 14 },
-    bottomActions: { flexDirection: 'row', gap: Theme.spacing.sm, marginTop: Theme.spacing.lg },
-    cancelButton: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Theme.spacing.md },
-    cancelButtonText: { color: Theme.colors.textMuted, fontWeight: '600', fontSize: 16 },
-    saveButton: {
-        flex: 2,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+    lavDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
         backgroundColor: Theme.colors.primary,
-        paddingVertical: Theme.spacing.md,
-        borderRadius: Theme.borderRadius.lg,
-        gap: 8,
-        ...Theme.shadows.primary
+        shadowColor: Theme.colors.primary,
+        shadowOpacity: 0.6,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 0 },
     },
-    saveButtonText: { color: Theme.colors.surface, fontWeight: '700', fontSize: 16 },
-    suggestionsScrollView: {
-        maxHeight: 280,
-        marginVertical: Theme.spacing.sm,
-    },
-    suggestionsList: { marginVertical: Theme.spacing.xs },
-    suggestionItem: { padding: Theme.spacing.md, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, borderRadius: Theme.borderRadius.md, marginBottom: Theme.spacing.xs },
-    selectedSuggestion: { backgroundColor: Theme.colors.primaryLight, borderColor: Theme.colors.primary, borderWidth: 1 },
-    suggestionContent: {
+    linkedChipText: { fontFamily: Theme.fonts.regular, fontSize: 13, color: Theme.colors.textSecondary, maxWidth: 210 },
+
+    suggestRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+        paddingVertical: 12,
+        paddingLeft: 14,
+        paddingRight: 12,
+        borderRadius: 16,
+        backgroundColor: 'rgba(176,130,255,0.07)',
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: 'rgba(176,130,255,0.3)',
     },
-    suggestionTitle: { fontSize: 16, color: Theme.colors.text, flex: 1 },
-    confirmText: { fontSize: 16, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: Theme.spacing.lg, lineHeight: 22 }
-});
+    suggestText: { fontFamily: Theme.fonts.medium, fontSize: 14, lineHeight: 19, color: Theme.colors.textSecondary },
+    suggestReason: { fontFamily: Theme.fonts.regular, fontSize: 11, color: Theme.colors.label, marginTop: 4 },
+    linkBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 13,
+        paddingVertical: 9,
+        borderRadius: 20,
+        backgroundColor: Theme.colors.primary,
+    },
+    linkBtnText: { fontFamily: Theme.fonts.monoBold, fontSize: 10, letterSpacing: 1, color: Theme.colors.background },
 
+    actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+    action: { flex: 1, alignItems: 'center', gap: 7, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
+    actionGold: { backgroundColor: 'rgba(255,215,0,0.1)', borderColor: 'rgba(255,215,0,0.25)' },
+    actionLavender: { backgroundColor: 'rgba(176,130,255,0.1)', borderColor: 'rgba(176,130,255,0.28)' },
+    actionGhost: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)' },
+    actionLabel: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1 },
+
+    // Link picker
+    pickerOverlay: { backgroundColor: Theme.colors.background, zIndex: 75 },
+    pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 26 },
+    pickerTitle: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 3, color: Theme.colors.primary },
+    pickerSub: { fontFamily: Theme.fonts.regular, fontSize: 13, color: Theme.colors.textMuted, marginTop: 16, marginBottom: 8, paddingHorizontal: 26 },
+    pickerEmpty: { fontFamily: Theme.fonts.regular, fontSize: 14, color: Theme.colors.textMuted, textAlign: 'center', paddingVertical: 40 },
+    pickerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 13,
+        padding: 14,
+        marginBottom: 9,
+        borderRadius: 16,
+        backgroundColor: Theme.colors.surface,
+        borderWidth: 1,
+        borderColor: Theme.colors.borderSoft,
+    },
+    pickerRowOn: { backgroundColor: 'rgba(176,130,255,0.1)', borderColor: Theme.colors.primary },
+    goldDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Theme.colors.gold },
+    pickerRowText: { fontFamily: Theme.fonts.medium, fontSize: 14, color: Theme.colors.textSecondary },
+    pickerRowTime: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1.5, color: Theme.colors.textFaint, marginTop: 5 },
+    check: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    checkOn: { backgroundColor: Theme.colors.primary, borderColor: Theme.colors.primary },
+    saveLinksBtn: { borderRadius: 26, overflow: 'hidden', ...Theme.shadows.primary },
+    saveLinksGrad: { paddingVertical: 16, alignItems: 'center', borderRadius: 26 },
+    saveLinksText: { fontFamily: Theme.fonts.semibold, fontSize: 15, letterSpacing: 1, color: Theme.colors.background },
+});

@@ -5,26 +5,19 @@ export async function createIdea(idea: Idea): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `INSERT INTO ideas (
-      id, createdAt, updatedAt, sourceType, text, title, status, 
-      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText, tags
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, createdAt, updatedAt, sourceType, text, title, status,
+      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       idea.id, idea.createdAt, idea.updatedAt, idea.sourceType, idea.text, idea.title, idea.status,
       idea.transcriptStatus || null, idea.audioLocalPath || null, idea.constellationX || null,
       idea.constellationY || null, idea.constellationSeed || null, idea.deletedAt || null,
-      idea.rawText || null, idea.tags ? JSON.stringify(idea.tags) : null
+      idea.rawText || null
     ]
   );
 }
 
 function parseIdeaRow(row: any): Idea {
-  if (row.tags && typeof row.tags === 'string') {
-    try {
-      row.tags = JSON.parse(row.tags);
-    } catch (e) {
-      row.tags = [];
-    }
-  }
   return row as Idea;
 }
 
@@ -43,16 +36,16 @@ export async function getAllIdeas(): Promise<Idea[]> {
 export async function updateIdea(idea: Idea): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `UPDATE ideas SET 
-      updatedAt = ?, text = ?, title = ?, status = ?, transcriptStatus = ?, 
+    `UPDATE ideas SET
+      updatedAt = ?, text = ?, title = ?, status = ?, transcriptStatus = ?,
       audioLocalPath = ?, constellationX = ?, constellationY = ?, constellationSeed = ?, deletedAt = ?,
-      rawText = ?, tags = ?
+      rawText = ?
      WHERE id = ?`,
     [
       idea.updatedAt, idea.text, idea.title, idea.status, idea.transcriptStatus || null,
       idea.audioLocalPath || null, idea.constellationX || null, idea.constellationY || null,
-      idea.constellationSeed || null, idea.deletedAt || null, 
-      idea.rawText || null, idea.tags ? JSON.stringify(idea.tags) : null,
+      idea.constellationSeed || null, idea.deletedAt || null,
+      idea.rawText || null,
       idea.id
     ]
   );
@@ -62,14 +55,14 @@ export async function upsertIdea(idea: Idea): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `INSERT OR REPLACE INTO ideas (
-      id, createdAt, updatedAt, sourceType, text, title, status, 
-      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText, tags
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, createdAt, updatedAt, sourceType, text, title, status,
+      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       idea.id, idea.createdAt, idea.updatedAt, idea.sourceType, idea.text, idea.title, idea.status,
       idea.transcriptStatus || null, idea.audioLocalPath || null, idea.constellationX || null,
       idea.constellationY || null, idea.constellationSeed || null, idea.deletedAt || null,
-      idea.rawText || null, idea.tags ? JSON.stringify(idea.tags) : null
+      idea.rawText || null
     ]
   );
 }

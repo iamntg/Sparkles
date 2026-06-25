@@ -1,15 +1,49 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, Text, Switch, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SectionHeader, Theme } from '@sparkles/ui';
+import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Theme } from '@sparkles/ui';
+import { CosmicBackground } from '@/components/CosmicBackground';
 import { googleAuthService } from '@/services/googleAuthService';
 import { backupService } from '@/services/backupService';
-import { useFocusEffect } from 'expo-router';
+
+function Toggle({ value, disabled, onToggle }: { value: boolean; disabled?: boolean; onToggle?: () => void }) {
+    return (
+        <Pressable onPress={disabled ? undefined : onToggle} style={{ opacity: disabled ? 0.5 : 1 }}>
+            {value ? (
+                <LinearGradient
+                    colors={[Theme.colors.gold, Theme.colors.amber]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.track}
+                >
+                    <View style={[styles.knob, { alignSelf: 'flex-end' }]} />
+                </LinearGradient>
+            ) : (
+                <View style={[styles.track, styles.trackOff]}>
+                    <View style={[styles.knob, { alignSelf: 'flex-start' }]} />
+                </View>
+            )}
+        </Pressable>
+    );
+}
+
+type PrefKey = 'aiReview' | 'autoPlan' | 'digest';
+
+const PREFERENCES: { key: PrefKey; label: string; desc: string }[] = [
+    { key: 'aiReview', label: 'AI Review', desc: 'Let Sparkles refine and critique each spark' },
+    { key: 'autoPlan', label: 'Auto Generate Plan', desc: 'Turn a spark into actionable steps automatically' },
+    { key: 'digest', label: 'Weekly rediscovery', desc: 'Gently resurface one drifting spark each week' },
+];
 
 export default function SettingsScreen() {
-    const [aiReviewEnabled, setAiReviewEnabled] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
+    const insets = useSafeAreaInsets();
     const [authenticated, setAuthenticated] = useState(googleAuthService.isAuthenticated());
+    const [busy, setBusy] = useState(false);
+    const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>({ aiReview: true, autoPlan: false, digest: true });
+    const togglePref = (key: PrefKey) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
     useFocusEffect(
         useCallback(() => {
@@ -17,22 +51,35 @@ export default function SettingsScreen() {
         }, [])
     );
 
+    const user = googleAuthService.getUser();
+    const email = user?.email ?? '';
+    const name = (user as any)?.name || (email ? email.split('@')[0] : 'Stargazer');
+    const initial = (name || 'S').charAt(0).toUpperCase();
+
     const handleSignIn = async () => {
-        setIsProcessing(true);
+        setBusy(true);
         try {
             await googleAuthService.login();
             setAuthenticated(true);
-            if (Platform.OS === 'web') {
-                window.alert('Successfully signed in with Google!');
-            } else {
-                Alert.alert('Success', 'Successfully signed in with Google!');
-            }
         } catch (e: any) {
-            if (e.message !== 'Login cancelled') {
-                Alert.alert('Sign In Error', e.message);
-            }
+            if (e?.message !== 'Login cancelled') Alert.alert('Sign In Error', e?.message ?? 'Failed to sign in');
         } finally {
-            setIsProcessing(false);
+            setBusy(false);
+        }
+    };
+
+    const handleSignOut = () => {
+        const doLogout = async () => {
+            await googleAuthService.logout();
+            setAuthenticated(false);
+        };
+        if (Platform.OS === 'web') {
+            if (window.confirm('Sign out of Google?')) doLogout();
+        } else {
+            Alert.alert('Sign Out', 'Sign out of Google?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign Out', style: 'destructive', onPress: doLogout },
+            ]);
         }
     };
 
@@ -44,191 +91,165 @@ export default function SettingsScreen() {
     };
 
     const handleBackup = async () => {
-        setIsProcessing(true);
+        setBusy(true);
         try {
             await ensureAuth();
             await backupService.backup();
             Alert.alert('Success', 'Backup uploaded to Google Drive!');
         } catch (e: any) {
-            Alert.alert('Backup Error', e.message);
+            if (e?.message !== 'Login cancelled') Alert.alert('Backup Error', e?.message ?? 'Backup failed');
         } finally {
-            setIsProcessing(false);
+            setBusy(false);
         }
     };
 
     const handleRestore = async () => {
-        setIsProcessing(true);
+        setBusy(true);
         try {
             await ensureAuth();
             await backupService.restore();
             Alert.alert('Success', 'Data restored from Google Drive!');
         } catch (e: any) {
-            Alert.alert('Restore Error', e.message);
+            if (e?.message !== 'Login cancelled') Alert.alert('Restore Error', e?.message ?? 'Restore failed');
         } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleSignOut = async () => {
-        const performLogout = async () => {
-            await googleAuthService.logout();
-            setAuthenticated(false);
-            if (Platform.OS === 'web') {
-                window.alert('You have been signed out from Google.');
-            } else {
-                Alert.alert('Signed Out', 'You have been signed out from Google.');
-            }
-        };
-
-        if (Platform.OS === 'web') {
-            if (window.confirm('Are you sure you want to sign out?')) {
-                performLogout();
-            }
-        } else {
-            Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Sign Out', style: 'destructive', onPress: performLogout }
-            ]);
+            setBusy(false);
         }
     };
 
     return (
         <View style={styles.container}>
-            <SectionHeader title="Settings" />
+            <CosmicBackground starCount={45} amberGlow={false} />
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingTop: insets.top + 48, paddingHorizontal: 24, paddingBottom: 150 }}
+            >
+                <Text style={styles.eyebrow}>THE VOID</Text>
+                <Text style={styles.title}>Settings</Text>
 
-            <View style={styles.section}>
-                <View style={styles.row}>
-                    <View style={styles.labelContainer}>
-                        <Ionicons name="sparkles-outline" size={20} color={Theme.colors.primary} style={styles.icon} />
-                        <Text style={styles.label}>AI Review</Text>
+                {/* Account card */}
+                <Pressable onPress={authenticated ? handleSignOut : handleSignIn} style={styles.accountCard}>
+                    <LinearGradient
+                        colors={['#80409B', Theme.colors.amber]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.accountAvatar}
+                    >
+                        <Text style={styles.accountInitial}>{authenticated ? initial : '✦'}</Text>
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.accountName}>{authenticated ? name : 'Sign in to sync'}</Text>
+                        <Text style={styles.accountEmail} numberOfLines={1}>
+                            {authenticated ? email : 'Connect Google Drive'}
+                        </Text>
                     </View>
-                    <Switch
-                        disabled
-                        value={aiReviewEnabled}
-                        onValueChange={setAiReviewEnabled}
-                        trackColor={{ false: "#ddd", true: Theme.colors.primary }}
-                        thumbColor={Platform.OS === 'ios' ? undefined : Theme.colors.surface}
-                    />
-                </View>
-                <Text style={styles.subLabel}>Automatically summarize and cluster your daily ideas.</Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Cloud Backup (Google Drive)</Text>
-
-                {authenticated && (
-                    <View style={styles.authInfoContainer}>
-                        <Text style={styles.authInfo} numberOfLines={1}>Logged in as {googleAuthService.getUser()?.email}</Text>
-                        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-                            <Text style={styles.signOutText}>Sign Out</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                <TouchableOpacity
-                    style={[styles.button, isProcessing && styles.disabledButton]}
-                    onPress={handleBackup}
-                    disabled={isProcessing}
-                >
-                    {isProcessing ? (
-                        <ActivityIndicator color={Theme.colors.surface} />
-                    ) : (
-                        <>
-                            <Ionicons name="cloud-upload-outline" size={20} color={Theme.colors.surface} />
-                            <Text style={styles.buttonText}>Backup Now</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, isProcessing && styles.disabledButton]}
-                    onPress={handleRestore}
-                    disabled={isProcessing}
-                >
-                    {isProcessing ? (
+                    {busy ? (
                         <ActivityIndicator color={Theme.colors.primary} />
+                    ) : authenticated ? (
+                        <View style={styles.syncedBadge}>
+                            <Text style={styles.syncedText}>SYNCED</Text>
+                        </View>
                     ) : (
-                        <>
-                            <Ionicons name="cloud-download-outline" size={20} color={Theme.colors.primary} />
-                            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Restore from File</Text>
-                        </>
+                        <Ionicons name="logo-google" size={20} color={Theme.colors.textSecondary} />
                     )}
-                </TouchableOpacity>
+                </Pressable>
 
-            </View>
+                {/* Preferences */}
+                <Text style={styles.sectionLabel}>PREFERENCES</Text>
+                {PREFERENCES.map((p, i) => (
+                    <View key={p.key} style={[styles.row, i < PREFERENCES.length - 1 && { marginBottom: 10 }]}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.rowTitle}>{p.label}</Text>
+                            <Text style={styles.rowDesc}>{p.desc}</Text>
+                        </View>
+                        <Toggle value={prefs[p.key]} onToggle={() => togglePref(p.key)} />
+                    </View>
+                ))}
 
-            {!authenticated && <View style={{ flex: 1 }} />}
+                {/* Data */}
+                <Text style={styles.sectionLabel}>DATA</Text>
+                <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle}>Back up the cosmos</Text>
+                        <Text style={styles.rowDesc}>
+                            {authenticated ? 'Sync your sparks to Google Drive' : 'Sign in to enable backups'}
+                        </Text>
+                    </View>
+                    <Pressable onPress={handleBackup} disabled={busy} style={[styles.pill, styles.pillGold]}>
+                        <Text style={[styles.pillText, { color: Theme.colors.gold }]}>BACK UP</Text>
+                    </Pressable>
+                </View>
+                <View style={[styles.row, { marginTop: 10 }]}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle}>Restore from a backup</Text>
+                        <Text style={styles.rowDesc}>Pull your sparks back from the cloud</Text>
+                    </View>
+                    <Pressable onPress={handleRestore} disabled={busy} style={[styles.pill, styles.pillLavender]}>
+                        <Text style={[styles.pillText, { color: Theme.colors.primary }]}>RESTORE</Text>
+                    </Pressable>
+                </View>
 
-            {!authenticated && (
-                <TouchableOpacity
-                    style={[styles.loginButton, isProcessing && styles.disabledButton]}
-                    onPress={handleSignIn}
-                    disabled={isProcessing}
-                >
-                    {isProcessing ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <>
-                            <Ionicons name="logo-google" size={20} color="#fff" />
-                            <Text style={styles.loginButtonText}>Sign In with Google</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-            )}
+                <Text style={styles.footer}>SPARKLES · v1.0 · MADE OF STARDUST</Text>
+            </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 20, backgroundColor: Theme.colors.background, paddingTop: Theme.spacing.header },
-    section: { marginVertical: 16 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: Theme.colors.text, marginBottom: 16 },
-    row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    labelContainer: { flexDirection: 'row', alignItems: 'center' },
-    icon: { marginRight: 12 },
-    label: { fontSize: 17, color: Theme.colors.text, fontWeight: '500' },
-    subLabel: { fontSize: 14, color: Theme.colors.textMuted, marginTop: 4, marginLeft: 32 },
-    divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
-    authInfoContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    authInfo: { fontSize: 14, color: Theme.colors.primary, fontWeight: '500', flex: 1 },
-    signOutButton: { 
-        paddingHorizontal: 12, 
-        paddingVertical: 6, 
-        backgroundColor: Theme.colors.errorLight, 
-        borderRadius: Theme.borderRadius.sm,
-        marginLeft: 8
-    },
-    signOutText: { fontSize: 13, color: Theme.colors.error, fontWeight: '700' },
-    button: {
+    container: { flex: 1, backgroundColor: Theme.colors.background },
+    eyebrow: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 3, color: Theme.colors.amber, opacity: 0.85 },
+    title: { fontFamily: Theme.fonts.bold, fontSize: 26, color: Theme.colors.text, marginTop: 4, letterSpacing: -0.4 },
+
+    accountCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: Theme.colors.primary,
-        paddingVertical: 14,
-        borderRadius: Theme.borderRadius.md,
-        marginBottom: 12,
-        gap: 10
+        gap: 14,
+        marginTop: 22,
+        padding: 18,
+        borderRadius: 20,
+        backgroundColor: 'rgba(128,64,155,0.16)',
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
     },
-    disabledButton: { opacity: 0.6 },
-    secondaryButton: { backgroundColor: Theme.colors.secondary },
-    buttonText: { color: Theme.colors.surface, fontSize: 16, fontWeight: '600' },
-    secondaryButtonText: { color: Theme.colors.primary },
-    loginButton: {
+    accountAvatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+    accountInitial: { color: '#fff', fontFamily: Theme.fonts.bold, fontSize: 19 },
+    accountName: { fontFamily: Theme.fonts.semibold, fontSize: 16, color: Theme.colors.text },
+    accountEmail: { fontFamily: Theme.fonts.mono, fontSize: 11, color: Theme.colors.label, marginTop: 3 },
+    syncedBadge: { borderWidth: 1, borderColor: 'rgba(124,224,168,0.3)', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
+    syncedText: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1, color: Theme.colors.success },
+
+    sectionLabel: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: Theme.colors.textFaint, marginTop: 26, marginBottom: 10 },
+
+    row: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#4285F4',
-        paddingVertical: 14,
-        borderRadius: Theme.borderRadius.md,
-        marginBottom: 16,
-        gap: 10,
-        ...Theme.shadows.soft
+        gap: 14,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: Theme.colors.surface,
+        borderWidth: 1,
+        borderColor: Theme.colors.borderSoft,
     },
-    loginButtonText: {
-        color: '#ffffff',
-        fontSize: 16,
-        fontWeight: '600'
-    }
+    rowTitle: { fontFamily: Theme.fonts.medium, fontSize: 14, color: Theme.colors.textSecondary },
+    rowDesc: { fontFamily: Theme.fonts.regular, fontSize: 12, color: Theme.colors.textMuted, marginTop: 3 },
+
+    pill: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1 },
+    pillGold: { borderColor: 'rgba(255,215,0,0.3)' },
+    pillLavender: { borderColor: 'rgba(176,130,255,0.3)' },
+    pillText: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 0.5 },
+
+    track: { width: 46, height: 27, borderRadius: 14, padding: 3, justifyContent: 'center' },
+    trackOff: { backgroundColor: 'rgba(255,255,255,0.13)' },
+    knob: {
+        width: 21,
+        height: 21,
+        borderRadius: 11,
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+    },
+
+    footer: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: '#4f4a63', textAlign: 'center', marginTop: 30 },
 });

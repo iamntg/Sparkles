@@ -11,7 +11,6 @@ export type Idea = {
   sourceType: string;
   text: string;
   rawText?: string;
-  tags?: string[];
   title: string;
   status: IdeaStatus;
   transcriptStatus?: string;

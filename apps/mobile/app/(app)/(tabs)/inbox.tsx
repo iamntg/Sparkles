@@ -1,327 +1,281 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, Text, FlatList, TouchableOpacity, TextInput, Modal, SafeAreaView } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmModal, Theme } from '@sparkles/ui';
-import { fetchAllIdeas } from '@/services/ideaService';
-import { digestService } from '@/services/digestService';
-import { Idea } from '@sparkles/core';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Theme } from '@sparkles/ui';
+import { Idea, Link } from '@sparkles/core';
+import { fetchAllIdeas } from '@/services/ideaService';
+import { fetchAllLinks } from '@/services/linkService';
+import { CosmicBackground } from '@/components/CosmicBackground';
+
+type Filter = 'all' | 'linked' | 'recent';
+const FILTERS: { key: Filter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'linked', label: 'Linked' },
+    { key: 'recent', label: 'Recent' },
+];
+
+const DAY = 86400000;
+
+function timeAgo(ts: number): string {
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'JUST NOW';
+    if (diff < DAY) {
+        const hrs = Math.floor(diff / 3600000);
+        if (hrs >= 1) return `${hrs} HR${hrs > 1 ? 'S' : ''} AGO`;
+        const mins = Math.floor(diff / 60000);
+        return `${mins} MIN AGO`;
+    }
+    if (diff < 2 * DAY) return 'YESTERDAY';
+    const days = Math.floor(diff / DAY);
+    if (days < 7) return `${days} DAYS AGO`;
+    return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+}
 
 export default function InboxScreen() {
-    const [showModal, setShowModal] = useState(false);
-    const [lastSavedId, setLastSavedId] = useState<string | null>(null);
-    const [ideas, setIdeas] = useState<Idea[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showDigestBanner, setShowDigestBanner] = useState(false);
-    const [todayIdeasCount, setTodayIdeasCount] = useState(0);
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const [ideas, setIdeas] = useState<Idea[]>([]);
+    const [links, setLinks] = useState<Link[]>([]);
+    const [search, setSearch] = useState('');
+    const [filter, setFilter] = useState<Filter>('all');
 
-    const loadIdeas = useCallback(async () => {
-        const data = await fetchAllIdeas();
-        setIdeas(data);
-
-        // Calculate count of ideas created today
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const todayMs = startOfDay.getTime();
-        const todayIdeas = data.filter(idea => idea.createdAt >= todayMs);
-        setTodayIdeasCount(todayIdeas.length);
-
-        // Check if today's digest has already been generated
-        const todayStr = startOfDay.toISOString().split('T')[0];
-        const digestId = `digest-${todayStr}`;
-        try {
-            const existingDigest = await digestService.fetchDigestById(digestId);
-            setShowDigestBanner(todayIdeas.length >= 3 && !existingDigest);
-        } catch (err) {
-            console.error("Failed to check daily digest existence", err);
-            setShowDigestBanner(todayIdeas.length >= 3);
-        }
+    const loadData = useCallback(async () => {
+        const [ideaData, linkData] = await Promise.all([fetchAllIdeas(), fetchAllLinks()]);
+        setIdeas(ideaData);
+        setLinks(linkData);
     }, []);
 
     useFocusEffect(
         useCallback(() => {
-            loadIdeas();
-        }, [loadIdeas])
+            loadData();
+        }, [loadData])
     );
 
-    const handleSaveSuccess = (ideaId: string) => {
-        setLastSavedId(ideaId);
-        setShowModal(true);
-        loadIdeas();
-    };
+    const linkCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        links.forEach(l => {
+            counts[l.fromIdeaId] = (counts[l.fromIdeaId] || 0) + 1;
+            counts[l.toIdeaId] = (counts[l.toIdeaId] || 0) + 1;
+        });
+        return counts;
+    }, [links]);
 
-    const handleDevelopFurther = () => {
-        setShowModal(false);
-        if (lastSavedId) {
-            router.push(`/develop/${lastSavedId}`);
-        }
-    };
+    const q = search.trim().toLowerCase();
+    const filtered = useMemo(() => {
+        return ideas.filter(it => {
+            if (q) {
+                const hay = `${it.title || ''} ${it.text || ''}`.toLowerCase();
+                if (!hay.includes(q)) return false;
+            }
+            if (filter === 'linked') return (linkCounts[it.id] || 0) > 0;
+            if (filter === 'recent') return Date.now() - it.createdAt < DAY;
+            return true;
+        });
+    }, [ideas, q, filter, linkCounts]);
 
-    const handleComeBackLater = () => {
-        setShowModal(false);
-    };
+    const isEmpty = ideas.length === 0;
+    const noResults = !isEmpty && filtered.length === 0;
 
-    const filteredIdeas = ideas.filter(idea =>
-        (idea.title && idea.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (idea.text && idea.text.toLowerCase().includes(searchQuery.toLowerCase()))
+    const renderHeader = () => (
+        <View>
+            <Text style={styles.eyebrow}>THE STREAM</Text>
+            <Text style={styles.title}>Ideas</Text>
+
+            {isEmpty ? (
+                <View style={styles.emptyStream}>
+                    <View style={styles.emptyRing}>
+                        <View style={styles.emptyStar} />
+                    </View>
+                    <Text style={styles.emptyTitle}>The stream is quiet</Text>
+                    <Text style={styles.emptySub}>
+                        Your captured sparks will gather here,{'\n'}newest first. Catch one to begin.
+                    </Text>
+                </View>
+            ) : (
+                <>
+                    <Text style={styles.subtitle}>Every spark, newest first.</Text>
+
+                    {/* Search */}
+                    <View style={styles.searchBar}>
+                        <Ionicons name="search-outline" size={16} color={Theme.colors.textMuted} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search your sparks"
+                            placeholderTextColor={Theme.colors.textFaint}
+                            value={search}
+                            onChangeText={setSearch}
+                        />
+                        {search.length > 0 && (
+                            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+                                <Ionicons name="close" size={16} color={Theme.colors.textMuted} />
+                            </Pressable>
+                        )}
+                    </View>
+
+                    {/* Filter chips */}
+                    <View style={styles.chipRow}>
+                        {FILTERS.map(f => {
+                            const active = filter === f.key;
+                            return (
+                                <Pressable
+                                    key={f.key}
+                                    onPress={() => setFilter(f.key)}
+                                    style={[styles.chip, active && styles.chipActive]}
+                                >
+                                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                </>
+            )}
+
+            {noResults && (
+                <View style={styles.noResults}>
+                    <Text style={styles.noResultsTitle}>No sparks match</Text>
+                    <Text style={styles.noResultsSub}>Try a different word or filter.</Text>
+                </View>
+            )}
+        </View>
     );
 
     return (
         <View style={styles.container}>
-            {/* Floating Action Button (FAB) for adding an idea */}
-            <TouchableOpacity 
-                style={styles.fabButton}
-                onPress={() => router.push('/add')}
-            >
-                <Ionicons name="add" size={32} color="#fff" />
-            </TouchableOpacity>
-
-            <View style={styles.listHeader}>
-                <Text style={styles.listTitle}>Inbox</Text>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity
-                        style={styles.clusterButton}
-                        onPress={() => router.push('/clusters')}
-                    >
-                        <View style={{ position: 'relative', width: 22, height: 18, justifyContent: 'center' }}>
-                            <Ionicons name="layers-outline" size={16} color="#fff" />
-                            <Ionicons name="sparkles-outline" size={12} color="#fff" style={{ position: 'absolute', top: -2, right: -4 }} />
-                        </View>
-                        <Text style={styles.clusterButtonText}>AI Cluster</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.refreshIconButton} onPress={loadIdeas}>
-                        <Ionicons name="refresh-outline" size={22} color="#666" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            <View style={styles.searchBarContainer}>
-                <Ionicons name="search-outline" size={18} color={Theme.colors.textSecondary} style={styles.searchIcon} />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search ideas..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholderTextColor={Theme.colors.textMuted}
-                />
-                {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <Ionicons name="close-circle" size={18} color={Theme.colors.textMuted} />
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            {showDigestBanner && (
-                <TouchableOpacity
-                    style={styles.digestBanner}
-                    onPress={() => router.push('/daily-digest')}
-                    activeOpacity={0.9}
-                >
-                    <View style={styles.digestBannerIconContainer}>
-                        <Ionicons name="sparkles" size={20} color="#fff" />
-                    </View>
-                    <View style={styles.digestBannerTextContainer}>
-                        <Text style={styles.digestBannerTitle}>Daily Sparkles Digest Ready</Text>
-                        <Text style={styles.digestBannerSubtitle}>
-                            You've captured {todayIdeasCount} ideas today. Tap to synthesize!
-                        </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#fff" style={{ opacity: 0.8 }} />
-                </TouchableOpacity>
-            )}
-
+            <CosmicBackground starCount={50} amberGlow={false} />
             <FlatList
-                data={filteredIdeas}
+                data={filtered}
                 keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContainer}
-                renderItem={({ item }) => (
-                    <TouchableOpacity
-                        style={styles.listItem}
-                        onPress={() => router.push(`/develop/${item.id}`)}
-                    >
-                        <View style={styles.listItemHeader}>
-                            {item.title ? (
-                                <Text style={styles.listTitleText} numberOfLines={1}>{item.title}</Text>
-                            ) : null}
-                            <Text style={styles.listDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-                        </View>
-                        <Text style={styles.listText} numberOfLines={2}>{item.text || 'Empty Idea'}</Text>
-                    </TouchableOpacity>
-                )}
-            />
-
-            <ConfirmModal
-                visible={showModal}
-                title="Idea Saved!"
-                confirmText="Develop further"
-                cancelText="Come back later"
-                onConfirm={handleDevelopFurther}
-                onCancel={handleComeBackLater}
+                ListHeaderComponent={renderHeader}
+                contentContainerStyle={{
+                    paddingTop: insets.top + 48,
+                    paddingHorizontal: 24,
+                    paddingBottom: 150,
+                }}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item, index }) => {
+                    const count = linkCounts[item.id] || 0;
+                    const body = item.text || item.title || 'Empty spark';
+                    return (
+                        <Pressable style={styles.item} onPress={() => router.push(`/develop/${item.id}`)}>
+                            <View style={styles.itemDot} />
+                            <View style={styles.itemBody}>
+                                <Text style={styles.itemText} numberOfLines={2}>{body}</Text>
+                                <View style={styles.itemMeta}>
+                                    <Text style={styles.itemTime}>{timeAgo(item.createdAt)}</Text>
+                                    {count > 0 && (
+                                        <View style={styles.itemLinks}>
+                                            <Ionicons name="link-outline" size={11} color={Theme.colors.primary} />
+                                            <Text style={styles.itemLinksText}>{count}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                            <Text style={styles.itemNum}>{String(index + 1).padStart(2, '0')}</Text>
+                        </Pressable>
+                    );
+                }}
             />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: Theme.spacing.md, backgroundColor: Theme.colors.background },
-    card: { padding: Theme.spacing.md, marginTop: 40, borderRadius: Theme.borderRadius.lg, backgroundColor: Theme.colors.surface, zIndex: 10 },
-    fabButton: {
-        position: 'absolute',
-        bottom: 30,
-        right: 20,
-        backgroundColor: Theme.colors.primary,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...Theme.shadows.primary,
-        zIndex: 99,
+    container: { flex: 1, backgroundColor: Theme.colors.background },
+    eyebrow: {
+        fontFamily: Theme.fonts.mono,
+        fontSize: 10,
+        letterSpacing: 3,
+        color: Theme.colors.amber,
+        opacity: 0.85,
     },
-    titleInput: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: Theme.colors.text,
-        marginBottom: 8,
-        paddingBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: Theme.colors.border
-    },
-    tagSuggestionsBox: {
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        right: 0,
-        backgroundColor: Theme.colors.surface,
-        borderRadius: Theme.borderRadius.md,
-        borderWidth: 1,
-        borderColor: Theme.colors.border,
-        ...Theme.shadows.soft,
-        zIndex: 20,
-        maxHeight: 150
-    },
-    tagSuggestionItem: {
-        padding: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: Theme.colors.border
-    },
-    tagSuggestionText: {
-        fontSize: 15,
-        color: Theme.colors.primary,
-        fontWeight: '500'
-    },
-    actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
-    actionButton: {
+    title: { fontFamily: Theme.fonts.bold, fontSize: 26, color: Theme.colors.text, marginTop: 4, letterSpacing: -0.4 },
+    subtitle: { fontFamily: Theme.fonts.regular, fontSize: 13, color: Theme.colors.textMuted, marginTop: 6, marginBottom: 16 },
+
+    searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 10,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        borderRadius: Theme.borderRadius.lg,
+        backgroundColor: Theme.colors.surfaceRaised,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        marginBottom: 13,
+    },
+    searchInput: { flex: 1, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, fontSize: 14, padding: 0 },
+
+    chipRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+    chip: {
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: Theme.borderRadius.xl,
-        gap: 6
-    },
-    primaryButton: { backgroundColor: Theme.colors.primary },
-    secondaryButton: { backgroundColor: Theme.colors.secondary },
-    recordingButton: { backgroundColor: Theme.colors.error },
-    disabledButton: { backgroundColor: '#ddd' },
-    buttonText: { color: Theme.colors.surface, fontWeight: '600', fontSize: 14 },
-    iconButton: { padding: 4 },
-    listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 32, marginBottom: 16 },
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    listTitle: { fontSize: 22, fontWeight: 'bold', color: Theme.colors.text },
-    clusterButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Theme.colors.primary,
-        paddingHorizontal: 14,
         paddingVertical: 8,
-        borderRadius: Theme.borderRadius.lg + 6,
-        gap: 6
-    },
-    clusterButtonText: { color: Theme.colors.surface, fontWeight: '600', fontSize: 13 },
-    refreshIconButton: { padding: 4 },
-    listContainer: { paddingBottom: 40 },
-    searchBarContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        borderRadius: Theme.borderRadius.full,
         backgroundColor: Theme.colors.surface,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: Theme.borderRadius.md,
-        marginBottom: 20,
         borderWidth: 1,
         borderColor: Theme.colors.border,
-        ...Theme.shadows.soft
     },
-    searchIcon: { marginRight: 8 },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-        color: Theme.colors.text,
-        paddingVertical: 0
-    },
-    listItem: {
-        backgroundColor: Theme.colors.surface,
+    chipActive: { backgroundColor: Theme.colors.primaryLight, borderColor: Theme.colors.primary },
+    chipText: { fontFamily: Theme.fonts.medium, fontSize: 13, color: Theme.colors.textMuted },
+    chipTextActive: { fontFamily: Theme.fonts.semibold, color: Theme.colors.primary },
+
+    item: {
+        flexDirection: 'row',
+        gap: 14,
+        alignItems: 'flex-start',
         padding: 16,
         marginBottom: 12,
-        borderRadius: Theme.borderRadius.md,
+        borderRadius: 18,
+        backgroundColor: Theme.colors.surface,
         borderWidth: 1,
-        borderColor: Theme.colors.border,
-        ...Theme.shadows.soft
+        borderColor: Theme.colors.borderSoft,
     },
-    listItemHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    itemDot: {
+        marginTop: 3,
+        width: 11,
+        height: 11,
+        borderRadius: 6,
+        backgroundColor: Theme.colors.gold,
+        shadowColor: Theme.colors.gold,
+        shadowOpacity: 0.5,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 0 },
+    },
+    itemBody: { flex: 1, minWidth: 0 },
+    itemText: { fontFamily: Theme.fonts.medium, fontSize: 15, lineHeight: 21, color: Theme.colors.textSecondary },
+    itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+    itemTime: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 1.5, color: Theme.colors.textFaint },
+    itemLinks: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    itemLinksText: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1, color: Theme.colors.primary },
+    itemNum: { fontFamily: Theme.fonts.mono, fontSize: 10, color: '#4f4a63', marginTop: 2 },
+
+    emptyStream: { alignItems: 'center', paddingVertical: 70 },
+    emptyRing: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        borderWidth: 1.5,
+        borderStyle: 'dashed',
+        borderColor: 'rgba(255,215,0,0.35)',
         alignItems: 'center',
-        marginBottom: 6
-    },
-    listTitleText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: Theme.colors.primary,
-        flex: 1,
-        marginRight: 8
-    },
-    listDate: {
-        fontSize: 12,
-        color: Theme.colors.textMuted
-    },
-    listText: { color: Theme.colors.textSecondary, fontSize: 16, lineHeight: 22 },
-    digestBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#9b59b6', // Cosmic purple background
-        padding: 16,
-        borderRadius: Theme.borderRadius.lg,
-        marginBottom: 16,
-        elevation: 4,
-        shadowColor: '#9b59b6',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)'
-    },
-    digestBannerIconContainer: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
         justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12
+        marginBottom: 22,
     },
-    digestBannerTextContainer: {
-        flex: 1
+    emptyStar: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Theme.colors.gold,
+        shadowColor: Theme.colors.gold,
+        shadowOpacity: 0.8,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 0 },
     },
-    digestBannerTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 2
-    },
-    digestBannerSubtitle: {
-        fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.9)'
-    }
+    emptyTitle: { fontFamily: Theme.fonts.bold, fontSize: 18, color: Theme.colors.text },
+    emptySub: { fontFamily: Theme.fonts.regular, fontSize: 13, lineHeight: 20, color: Theme.colors.textMuted, marginTop: 8, textAlign: 'center' },
+
+    noResults: { alignItems: 'center', paddingVertical: 50 },
+    noResultsTitle: { fontFamily: Theme.fonts.semibold, fontSize: 15, color: Theme.colors.label },
+    noResultsSub: { fontFamily: Theme.fonts.regular, fontSize: 13, color: Theme.colors.textMuted, marginTop: 6 },
 });

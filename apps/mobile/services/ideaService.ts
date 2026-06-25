@@ -1,19 +1,18 @@
-import { Idea, IdeaStatus, parseIdeaInput } from '@sparkles/core';
-import { createIdea as dbCreateIdea, getAllIdeas, getIdea, updateIdea, incrementTagsUsage, searchTags as dbSearchTags, Tag } from '@sparkles/db';
+import { Idea, IdeaStatus } from '@sparkles/core';
+import { createIdea as dbCreateIdea, getAllIdeas, getIdea, updateIdea } from '@sparkles/db';
 import * as Crypto from 'expo-crypto';
 
 export async function saveNewIdea(text: string, opts?: { title?: string; sourceType?: string; audioLocalPath?: string; transcriptStatus?: string }): Promise<Idea> {
     const id = `idea_${Date.now()}_${await generateRandomString()}`;
-    const parsed = parseIdeaInput(text);
-    
+    const trimmed = text || '';
+
     const idea: Idea = {
         id,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         sourceType: opts?.sourceType || 'text',
-        text: parsed.parsedText,
-        rawText: parsed.rawText,
-        tags: parsed.tags,
+        text: trimmed,
+        rawText: trimmed,
         title: opts?.title || '',
         status: IdeaStatus.DRAFT,
         constellationX: Math.random() * 1000,
@@ -24,9 +23,6 @@ export async function saveNewIdea(text: string, opts?: { title?: string; sourceT
     };
 
     await dbCreateIdea(idea);
-    if (parsed.tags.length > 0) {
-        await incrementTagsUsage(parsed.tags).catch(e => console.error("Failed to increment tags", e));
-    }
     return idea;
 }
 
@@ -40,19 +36,11 @@ export async function fetchIdeaById(id: string): Promise<Idea | null> {
 
 export async function saveIdeaChanges(idea: Idea): Promise<void> {
     idea.updatedAt = Date.now();
-    const parsed = parseIdeaInput(idea.rawText || idea.text);
-    idea.text = parsed.parsedText;
-    idea.rawText = parsed.rawText;
-    idea.tags = parsed.tags;
-    
-    await updateIdea(idea);
-    if (parsed.tags.length > 0) {
-        await incrementTagsUsage(parsed.tags).catch(e => console.error("Failed to increment tags", e));
-    }
-}
+    const next = idea.rawText ?? idea.text;
+    idea.text = next;
+    idea.rawText = next;
 
-export async function searchTags(prefix: string): Promise<Tag[]> {
-    return dbSearchTags(prefix);
+    await updateIdea(idea);
 }
 
 export async function deleteIdea(id: string): Promise<void> {
