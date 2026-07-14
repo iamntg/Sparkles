@@ -21,11 +21,6 @@ export async function getDb(): Promise<IDBPDatabase> {
         if (!db.objectStoreNames.contains('review_sessions')) {
           db.createObjectStore('review_sessions', { keyPath: 'id' });
         }
-
-        if (!db.objectStoreNames.contains('tags')) {
-          const tagStore = db.createObjectStore('tags', { keyPath: 'id' });
-          tagStore.createIndex('name', 'name', { unique: true });
-        }
       },
     });
   }

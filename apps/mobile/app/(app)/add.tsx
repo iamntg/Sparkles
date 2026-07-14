@@ -1,306 +1,293 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform, Alert, Dimensions, ScrollView } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    View, Text, StyleSheet, TextInput, Pressable, Alert,
+    KeyboardAvoidingView, Platform, Animated, Easing,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-
-import { TextInput } from 'react-native';
+import { Theme } from '@sparkles/ui';
 import { saveNewIdea } from '@/services/ideaService';
-import { startRecording, stopRecording, playAudio, stopAudio } from '@/services/audioService';
+import { startRecording, stopRecording } from '@/services/audioService';
 import { transcribeAudio } from '@/services/transcriptionService';
+import { CosmicBackground } from '@/components/CosmicBackground';
 
-import { CosmicInput } from '@/components/AddIdea/CosmicInput';
-import { CosmicCaptureButton } from '@/components/AddIdea/CosmicCaptureButton';
-import { CosmicAudioButton } from '@/components/AddIdea/CosmicAudioButton';
+const WAVE_BARS = 16;
 
-const { width, height } = Dimensions.get('window');
+function WaveForm() {
+    const bars = useRef(Array.from({ length: WAVE_BARS }, () => new Animated.Value(0.3))).current;
+
+    useEffect(() => {
+        const loops = bars.map((bar, i) =>
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(bar, { toValue: 1, duration: 360 + (i % 5) * 90, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+                    Animated.timing(bar, { toValue: 0.28, duration: 360 + (i % 5) * 90, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+                ])
+            )
+        );
+        loops.forEach((l, i) => setTimeout(() => l.start(), i * 60));
+        return () => loops.forEach(l => l.stop());
+    }, [bars]);
+
+    return (
+        <View style={styles.wave}>
+            {bars.map((bar, i) => (
+                <Animated.View
+                    key={i}
+                    style={[
+                        styles.waveBar,
+                        { height: bar.interpolate({ inputRange: [0, 1], outputRange: [8, 54] }) },
+                    ]}
+                />
+            ))}
+        </View>
+    );
+}
 
 export default function AddIdeaScreen() {
     const router = useRouter();
-    const [text, setText] = useState('');
-    const [isRecording, setIsRecording] = useState(false);
-    const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+    const insets = useSafeAreaInsets();
+
+    const [draft, setDraft] = useState('');
+    const [mode, setMode] = useState<'compose' | 'recording'>('compose');
     const [isSaving, setIsSaving] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const [seconds, setSeconds] = useState(0);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Audio specific state
-    const [audioUri, setAudioUri] = useState<string | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
+    useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
-    const [title, setTitle] = useState('');
-
-    const handleClose = () => {
-        router.back();
+    const leave = () => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(app)/(tabs)/constellation');
+        }
     };
 
-    const handleSave = async () => {
-        if (!text.trim() && !audioUri) return;
+    const close = () => leave();
+
+    const handleCapture = async () => {
+        if (!draft.trim() || isSaving) return;
         setIsSaving(true);
         try {
-            // If we have an audioUri but it wasn't saved immediately (in case logic changes), we handle it. 
-            // In the previous flow, audio was transcribed and saved ON STOP. 
-            // Let's preserve that or adapt it.
-
-            let finalIdea;
-            if (audioUri && !text.trim()) {
-                // Should not happen if transcribed on stop
-                finalIdea = await saveNewIdea("Audio note", {
-                    title: title.trim() || undefined,
-                    sourceType: 'audio',
-                    audioLocalPath: audioUri,
-                    transcriptStatus: 'DONE'
-                });
-            } else {
-                finalIdea = await saveNewIdea(text, { title: title.trim() || undefined });
-            }
-
-            router.back();
-            // In a real app we might pass params back or emit an event to refresh the previous screen
-        } catch (err) {
-            Alert.alert('Save Failed', 'Failed to save your idea.');
-        } finally {
+            await saveNewIdea(draft.trim());
+            leave();
+        } catch {
+            Alert.alert('Save Failed', 'Could not save your spark.');
             setIsSaving(false);
         }
     };
 
-    const handleToggleRecording = async () => {
-        if (isRecording) {
-            setIsRecording(false);
-            try {
-                const uri = await stopRecording();
-                setAudioUri(uri);
-
-                setIsProcessingAudio(true);
-                let transcribedText = '';
-                let status = 'DONE';
-                try {
-                    transcribedText = await transcribeAudio(uri);
-                } catch (e) {
-                    status = 'FAILED';
-                    Alert.alert('Transcription Failed', 'Could not transcribe the audio. Saving with failed status.');
-                }
-
-                // Append transcribed text
-                setText(prev => (prev ? `${prev}\n\n${transcribedText}` : transcribedText));
-
-                // We won't automatically save and close, giving user a chance to edit text.
-                setIsProcessingAudio(false);
-            } catch (err) {
-                Alert.alert('Recording Failed', 'Failed to stop recording cleanly.');
-                setAudioUri(null);
-                setIsProcessingAudio(false);
-            }
-        } else {
-            try {
-                await startRecording();
-                setIsRecording(true);
-                setAudioUri(null);
-            } catch (err) {
-                Alert.alert('Recording Failed', 'Ensure microphone permissions are granted.');
-            }
-        }
-    };
-
-    const handlePlayAudio = async () => {
-        if (!audioUri) return;
+    const beginRecording = async () => {
         try {
-            if (isPlaying) {
-                await stopAudio();
-                setIsPlaying(false);
-            } else {
-                await playAudio(audioUri);
-                setIsPlaying(true);
-            }
-        } catch (err) {
-            Alert.alert('Playback Failed');
+            await startRecording();
+            setSeconds(0);
+            setMode('recording');
+            timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+        } catch {
+            Alert.alert('Recording Failed', 'Ensure microphone permissions are granted.');
         }
     };
 
-    const isBusy = isSaving || isProcessingAudio;
+    const stopTimer = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const finishRecording = async () => {
+        stopTimer();
+        setMode('compose');
+        setIsTranscribing(true);
+        try {
+            const uri = await stopRecording();
+            let transcript = '';
+            try {
+                transcript = await transcribeAudio(uri);
+            } catch {
+                Alert.alert('Transcription Failed', 'Could not transcribe the audio.');
+            }
+            if (transcript) {
+                setDraft(prev => (prev ? `${prev}\n\n${transcript}` : transcript));
+            }
+        } catch {
+            Alert.alert('Recording Failed', 'Failed to stop recording cleanly.');
+        } finally {
+            setIsTranscribing(false);
+        }
+    };
+
+    const cancelRecording = async () => {
+        stopTimer();
+        setMode('compose');
+        try { await stopRecording(); } catch { /* discard */ }
+    };
+
+    const mmss = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    const canCapture = draft.trim().length > 0 && !isSaving;
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            {/* Background Gradients */}
-            <View style={styles.backgroundContainer} pointerEvents="none">
-                <View style={styles.topRightGradient} />
-                <View style={styles.bottomLeftGradient} />
-            </View>
+        <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <CosmicBackground starCount={50} />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={handleClose} style={styles.closeButton} disabled={isBusy}>
-                    <Ionicons name="close" size={28} color="#cbd5e1" />
-                </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                <View style={styles.content}>
-                    <TextInput
-                        style={[styles.titleInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
-                        placeholder="Title (optional)"
-                        placeholderTextColor="rgba(203, 195, 215, 0.5)"
-                        value={title}
-                        onChangeText={setTitle}
-                        editable={!isBusy}
-                    />
-
-                    <View style={styles.separator} />
-
-                    <CosmicInput
-                        value={text}
-                        onChangeText={setText}
-                        placeholder="What's on your mind? Add #tags"
-                        editable={!isBusy}
-                    />
-
-                    {/* Action Button */}
-                    <CosmicCaptureButton
-                        onPress={handleSave}
-                        isLoading={isBusy}
-                        disabled={(!text.trim() && !audioUri) || isRecording}
-                        label={isProcessingAudio ? "Transcribing..." : "Capture Idea"}
-                    />
-
-                    {/* Audio Controls */}
-                    <View style={styles.audioContainer}>
-                        <CosmicAudioButton
-                            isRecording={isRecording}
-                            onPress={handleToggleRecording}
-                            disabled={isBusy}
-                        />
-                        {audioUri && !isRecording && (
-                            <TouchableOpacity
-                                style={styles.playButton}
-                                onPress={handlePlayAudio}
-                            >
-                                <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#a78bfa" />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-
+            <View style={[styles.frame, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}>
+                {/* Header */}
+                <View style={styles.header}>
+                    {mode === 'compose' ? (
+                        <Pressable onPress={close} style={styles.iconBtn}>
+                            <Ionicons name="close" size={16} color="#cfcadd" />
+                        </Pressable>
+                    ) : (
+                        <View style={{ width: 38 }} />
+                    )}
+                    <Text style={styles.eyebrow}>NEW SPARK</Text>
+                    <View style={{ width: 38 }} />
                 </View>
-            </ScrollView>
 
-            {/* Floating Stardust Elements */}
-            <View style={styles.star1} pointerEvents="none" />
-            <View style={styles.star2} pointerEvents="none" />
-            <View style={styles.star3} pointerEvents="none" />
+                {mode === 'compose' ? (
+                    <View style={styles.composeBody}>
+                        <TextInput
+                            value={draft}
+                            onChangeText={setDraft}
+                            placeholder="What's on your mind?"
+                            placeholderTextColor={Theme.colors.textFaint}
+                            multiline
+                            autoFocus
+                            editable={!isSaving && !isTranscribing}
+                            style={styles.composeInput}
+                        />
 
+                        <View style={styles.composeFooter}>
+                            <Text style={styles.count}>
+                                {isTranscribing ? 'TRANSCRIBING…' : `${draft.trim().length} CHARS`}
+                            </Text>
+                            <View style={styles.footerActions}>
+                                <Pressable onPress={beginRecording} disabled={isSaving || isTranscribing} style={styles.micBtn}>
+                                    <Ionicons name="mic" size={20} color={Theme.colors.amber} />
+                                </Pressable>
+                                <Pressable
+                                    onPress={handleCapture}
+                                    disabled={!canCapture}
+                                    style={[styles.captureBtn, !canCapture && styles.captureBtnDisabled]}
+                                >
+                                    <Text style={[styles.captureText, !canCapture && styles.captureTextDisabled]}>
+                                        {isSaving ? 'Saving…' : 'Capture'}
+                                    </Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    </View>
+                ) : (
+                    <View style={styles.recordBody}>
+                        <View style={styles.recordCenter}>
+                            <View style={styles.listeningRow}>
+                                <View style={styles.recDot} />
+                                <Text style={styles.listening}>LISTENING</Text>
+                            </View>
+                            <Text style={styles.timer}>{mmss}</Text>
+                            <WaveForm />
+                            <Text style={styles.recHint}>Tap stop when you're done — we'll transcribe it.</Text>
+                        </View>
+
+                        <View style={styles.recControls}>
+                            <Pressable onPress={cancelRecording} style={styles.cancelBtn}>
+                                <Ionicons name="close" size={18} color="#cfcadd" />
+                            </Pressable>
+                            <Pressable onPress={finishRecording} style={styles.stopBtn}>
+                                <View style={styles.stopSquare} />
+                            </Pressable>
+                            <View style={{ width: 50 }} />
+                        </View>
+                    </View>
+                )}
+            </View>
         </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#0F172A', // slate-900 base
-    },
-    backgroundContainer: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    topRightGradient: {
-        position: 'absolute',
-        top: -height * 0.2,
-        right: -width * 0.2,
-        width: width * 0.8,
-        height: width * 0.8,
-        borderRadius: width * 0.4,
-        backgroundColor: 'rgba(139, 92, 246, 0.15)', // violet-500
-        transform: [{ scale: 1.5 }],
-    },
-    bottomLeftGradient: {
-        position: 'absolute',
-        bottom: -height * 0.2,
-        left: -width * 0.2,
-        width: width * 0.8,
-        height: width * 0.8,
-        borderRadius: width * 0.4,
-        backgroundColor: 'rgba(79, 70, 229, 0.1)', // indigo-600
-        transform: [{ scale: 1.5 }],
-    },
-    header: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: 24,
-        height: Platform.OS === 'ios' ? 110 : 90,
-        flexDirection: 'row',
-        alignItems: 'center',
-        zIndex: 50,
-    },
-    closeButton: {
-        padding: 8,
-        borderRadius: 9999,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingBottom: 40,
-    },
-    content: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingTop: 40, // offset for absolute header
-    },
-    titleInput: {
-        width: '100%',
-        maxWidth: 768,
-        fontSize: 24,
-        fontWeight: '600',
-        color: '#ffffff',
-        textAlign: 'center',
-        marginBottom: 16,
-    },
-    separator: {
-        width: 120,
-        height: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        marginBottom: 24,
-    },
-    audioContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 16,
-        marginTop: 40,
-    },
-    playButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(139, 92, 246, 0.15)',
-        justifyContent: 'center',
-        alignItems: 'center',
+    container: { flex: 1, backgroundColor: Theme.colors.background },
+    frame: { flex: 1, paddingHorizontal: 26 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    iconBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: 'rgba(255,255,255,0.07)',
         borderWidth: 1,
-        borderColor: 'rgba(167, 139, 250, 0.3)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    star1: {
-        position: 'absolute',
-        top: '25%',
-        left: '25%',
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    eyebrow: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 3, color: Theme.colors.amber },
+
+    composeBody: { flex: 1 },
+    composeInput: {
+        flex: 1,
+        marginTop: 38,
+        fontFamily: Theme.fonts.medium,
+        fontSize: 23,
+        lineHeight: 34,
+        color: Theme.colors.text,
+        textAlignVertical: 'top',
+        padding: 0,
     },
-    star2: {
-        position: 'absolute',
-        top: '33%',
-        right: '25%',
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: 'rgba(167, 139, 250, 0.3)',
+    composeFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
+    count: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 1, color: Theme.colors.textFaint },
+    footerActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    micBtn: {
+        width: 54,
+        height: 54,
+        borderRadius: 27,
+        backgroundColor: 'rgba(255,178,62,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,178,62,0.35)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    star3: {
-        position: 'absolute',
-        bottom: '33%',
-        left: '33%',
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    }
+    captureBtn: {
+        paddingHorizontal: 22,
+        paddingVertical: 15,
+        borderRadius: 26,
+        backgroundColor: Theme.colors.amber,
+        ...Theme.shadows.gold,
+    },
+    captureBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)', shadowOpacity: 0 },
+    captureText: { fontFamily: Theme.fonts.semibold, fontSize: 15, color: Theme.colors.background },
+    captureTextDisabled: { color: Theme.colors.textFaint },
+
+    recordBody: { flex: 1 },
+    recordCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    listeningRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Theme.colors.error },
+    listening: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 3, color: Theme.colors.amber },
+    timer: { fontFamily: Theme.fonts.bold, fontSize: 40, color: Theme.colors.text, marginTop: 18, letterSpacing: 1 },
+    wave: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 54, marginTop: 26 },
+    waveBar: { width: 3, borderRadius: 2, backgroundColor: Theme.colors.amber },
+    recHint: { fontFamily: Theme.fonts.regular, fontSize: 14, lineHeight: 21, color: '#cfcadd', marginTop: 30, paddingHorizontal: 24, textAlign: 'center' },
+
+    recControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18, paddingTop: 10 },
+    cancelBtn: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    stopBtn: {
+        width: 74,
+        height: 74,
+        borderRadius: 37,
+        backgroundColor: Theme.colors.gold,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...Theme.shadows.gold,
+    },
+    stopSquare: { width: 24, height: 24, borderRadius: 7, backgroundColor: Theme.colors.background },
 });
