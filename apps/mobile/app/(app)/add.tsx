@@ -58,14 +58,22 @@ export default function AddIdeaScreen() {
 
     useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
-    const close = () => router.back();
+    const leave = () => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(app)/(tabs)/constellation');
+        }
+    };
+
+    const close = () => leave();
 
     const handleCapture = async () => {
         if (!draft.trim() || isSaving) return;
         setIsSaving(true);
         try {
             await saveNewIdea(draft.trim());
-            router.back();
+            leave();
         } catch {
             Alert.alert('Save Failed', 'Could not save your spark.');
             setIsSaving(false);
