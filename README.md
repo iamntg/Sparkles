@@ -46,6 +46,20 @@ Everything lives on your device. Backups go only to *your* Google Drive, encrypt
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+
+| 🌌 Constellation | 📜 The Stream | ⚡ Capture | ✍️ Develop | ⚙️ Settings |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/constellation.png" width="155" alt="Constellation — ideas as glowing stars"/> | <img src="docs/screenshots/stream.png" width="155" alt="The Stream — searchable list of ideas"/> | <img src="docs/screenshots/capture.png" width="155" alt="Capture — frictionless new spark"/> | <img src="docs/screenshots/develop.png" width="155" alt="Develop — grow a single idea"/> | <img src="docs/screenshots/settings.png" width="155" alt="Settings — backup and AI preferences"/> |
+
+<sub>The home constellation · a searchable Stream of every spark · frictionless capture · developing one idea · encrypted backup & AI preferences</sub>
+
+</div>
+
+---
+
 ## 🚀 Quickstart — preview in under a minute
 
 Sparkles is **local-first**, so the whole app runs with *zero backend and zero API keys*.
