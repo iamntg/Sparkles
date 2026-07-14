@@ -140,6 +140,62 @@ hidden AppData folder — no Sparkles server ever sees your data or your key.
 
 ---
 
+## 🔑 AI keys & model selection
+
+The AI features (clustering & digests) run through a **swappable provider** — you
+choose OpenAI or Anthropic Claude with a single env var. Keys live **only** in
+`apps/ai-service/.env` (server-side); they are never bundled into the app, which
+talks to the service over `EXPO_PUBLIC_AI_SERVICE_URL`.
+
+| Provider | Turn it on | Key variable | Model |
+| --- | --- | --- | --- |
+| **OpenAI** (default) | `AI_PROVIDER=openai` | `OPENAI_API_KEY` | `gpt-4o-mini` *(fixed in code)* |
+| **Anthropic Claude** | `AI_PROVIDER=claude` | `ANTHROPIC_API_KEY` | `CLAUDE_MODEL` *(default `claude-opus-4-8`)* |
+
+**Switching providers** is just flipping `AI_PROVIDER` and supplying the matching
+key — no code changes. Only Claude's model is configurable at runtime via
+`CLAUDE_MODEL` (e.g. `claude-haiku-4-5` for lower cost / faster responses).
+
+```bash
+# apps/ai-service/.env — use OpenAI
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+
+# …or use Anthropic Claude
+AI_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-...
+CLAUDE_MODEL=claude-opus-4-8       # optional; defaults to this
+```
+
+<details>
+<summary><b>How to get an OpenAI API key</b></summary>
+
+<br>
+
+1. Sign in at **[platform.openai.com](https://platform.openai.com)**.
+2. Add a payment method / credits under **Settings → Billing** (the API is pay-as-you-go).
+3. Go to **[API keys](https://platform.openai.com/api-keys) → Create new secret key**.
+4. Copy the key (it starts with `sk-…`, shown only once) into `OPENAI_API_KEY`.
+
+</details>
+
+<details>
+<summary><b>How to get an Anthropic (Claude) API key</b></summary>
+
+<br>
+
+1. Sign in at **[console.anthropic.com](https://console.anthropic.com)**.
+2. Add credits under **Billing** (also pay-as-you-go).
+3. Go to **[API Keys](https://console.anthropic.com/settings/keys) → Create Key**.
+4. Copy the key (it starts with `sk-ant-…`, shown only once) into `ANTHROPIC_API_KEY`.
+
+</details>
+
+> 💡 Keys are secrets — `.env` is git-ignored, so they stay out of the repo. Never
+> commit a key or paste it into client code.
+
+---
+
 ## 🗂️ Project structure
 
 A [pnpm](https://pnpm.io) + [Turborepo](https://turbo.build) monorepo — thin apps
