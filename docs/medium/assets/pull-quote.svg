@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Georgia, 'Times New Roman', serif">
+  <defs>
+    <radialGradient id="sky" cx="32%" cy="30%" r="90%">
+      <stop offset="0%" stop-color="#1b1436"/>
+      <stop offset="55%" stop-color="#0d0a20"/>
+      <stop offset="100%" stop-color="#07050f"/>
+    </radialGradient>
+    <radialGradient id="starGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffd76a"/>
+      <stop offset="100%" stop-color="#ffd76a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#sky)"/>
+
+  <!-- faint scattered stars -->
+  <g fill="#ffffff">
+    <circle cx="120" cy="90" r="1.6" opacity="0.5"/>
+    <circle cx="240" cy="160" r="1.1" opacity="0.35"/>
+    <circle cx="70" cy="300" r="1.3" opacity="0.4"/>
+    <circle cx="180" cy="470" r="1.6" opacity="0.45"/>
+    <circle cx="330" cy="540" r="1.1" opacity="0.3"/>
+    <circle cx="520" cy="120" r="1.2" opacity="0.35"/>
+    <circle cx="980" cy="110" r="1.5" opacity="0.5"/>
+    <circle cx="1090" cy="220" r="1.1" opacity="0.35"/>
+    <circle cx="1130" cy="420" r="1.4" opacity="0.4"/>
+    <circle cx="1010" cy="520" r="1.2" opacity="0.35"/>
+    <circle cx="860" cy="560" r="1.1" opacity="0.3"/>
+    <circle cx="700" cy="70" r="1.2" opacity="0.35"/>
+    <circle cx="430" cy="300" r="1" opacity="0.25"/>
+    <circle cx="780" cy="360" r="1" opacity="0.25"/>
+  </g>
+
+  <!-- two glowing "idea" stars linked by a thread -->
+  <line x1="200" y1="250" x2="1000" y2="400" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1.5"/>
+  <circle cx="200" cy="250" r="26" fill="url(#starGlow)" filter="url(#soft)"/>
+  <circle cx="200" cy="250" r="6" fill="#ffd76a"/>
+  <circle cx="1000" cy="400" r="26" fill="url(#starGlow)" filter="url(#soft)"/>
+  <circle cx="1000" cy="400" r="6" fill="#ffd76a"/>
+
+  <!-- eyebrow -->
+  <text x="600" y="205" text-anchor="middle" font-family="'Courier New', monospace"
+        font-size="20" letter-spacing="8" fill="#ffb23e" opacity="0.9">A NOTE TO FELLOW BUILDERS</text>
+
+  <!-- quote -->
+  <text x="600" y="315" text-anchor="middle" font-size="62" fill="#f4f2fb" font-style="italic">Prompts are cheap.</text>
+  <text x="600" y="400" text-anchor="middle" font-size="66" fill="#ffd76a" font-style="italic" font-weight="bold">Intentions are expensive.</text>
+
+  <!-- footer mark -->
+  <text x="600" y="470" text-anchor="middle" font-family="'Courier New', monospace"
+        font-size="22" letter-spacing="6" fill="#8f8aa8">&#10022; SPARKLES</text>
+</svg>
