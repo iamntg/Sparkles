@@ -35,7 +35,7 @@ Sparkles stores no user idea content on any server we operate.
 ## Article III — Calm by Default
 
 Sparkles is a thinking space, not a productivity dashboard. Every design
-decision defers to calm (see `DESIGN.md`).
+decision defers to calm.
 
 - Prefer whitespace and progressive disclosure over dense, information-rich UI.
 - Motion is subtle: soft glow, gentle fades, no abrupt or game-like animation.

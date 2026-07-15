@@ -1,5 +1,8 @@
 {
   "name": "sparkles",
+  "version": "1.0.0",
+  "description": "A calm, local-first thinking space where raw ideas grow into constellations — Expo + Turborepo monorepo.",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "build": "turbo run build",

@@ -8,6 +8,7 @@ import {
 import { googleDriveService } from './googleDriveService';
 import { VaultManifest } from '@sparkles/core';
 
+import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
@@ -28,8 +29,9 @@ async function getVaultKey(): Promise<string> {
   }
 
   if (!key) {
-    // Generate a random unique key for this new user
-    key = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+    // Generate a cryptographically secure, unique passphrase for this device.
+    const bytes = await Crypto.getRandomBytesAsync(32);
+    key = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
     if (Platform.OS === 'web') {
       localStorage.setItem(VAULT_KEY_STORAGE_KEY, key);
@@ -69,10 +71,10 @@ export const backupService = {
       const encryptedPayload = await encryptVault(dataString, key);
 
       const manifest: VaultManifest = {
-        version: 1,
+        version: 2,
         createdAt: Date.now(),
         kdf: { salt, iterations: 100000 },
-        encryption: { algorithm: 'AES-GCM' },
+        encryption: { algorithm: 'AES-256-GCM' },
       };
 
       const fullBackup = JSON.stringify({ manifest, payload: encryptedPayload });
@@ -98,7 +100,7 @@ export const backupService = {
 
       // 2. Decrypt the data
       const passphrase = await getVaultKey();
-      const key = await deriveKeyFromPassphrase(passphrase, manifest.kdf.salt);
+      const key = await deriveKeyFromPassphrase(passphrase, manifest.kdf.salt, manifest.kdf.iterations);
       const decryptedDataString = await decryptVault(payload, key);
       const backupData = JSON.parse(decryptedDataString);
 

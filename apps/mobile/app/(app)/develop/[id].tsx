@@ -9,7 +9,6 @@ import { suggestLinks } from '@sparkles/ai';
 import { Theme } from '@sparkles/ui';
 import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
 import { addLink, fetchLinksForIdea, removeLinksByIdea } from '@/services/linkService';
-import { playAudio, stopAudio } from '@/services/audioService';
 import { CosmicBackground } from '@/components/CosmicBackground';
 
 const DAY = 86400000;
@@ -46,7 +45,6 @@ export default function DevelopScreen() {
 
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
-    const [isPlaying, setIsPlaying] = useState(false);
 
     // Link picker overlay
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -96,21 +94,6 @@ export default function DevelopScreen() {
         return Math.max(0.16, Math.min(1, b));
     })();
     const brightLabel = brightness >= 0.75 ? 'GLOWING' : brightness >= 0.5 ? 'STEADY' : brightness >= 0.3 ? 'DRIFTING' : 'FADING';
-
-    const toggleAudio = async () => {
-        if (!idea?.audioLocalPath) return;
-        try {
-            if (isPlaying) {
-                await stopAudio();
-                setIsPlaying(false);
-            } else {
-                await playAudio(idea.audioLocalPath);
-                setIsPlaying(true);
-            }
-        } catch {
-            Alert.alert('Error', 'Failed to play audio');
-        }
-    };
 
     const handleDevelop = async () => {
         if (!idea) return;
@@ -193,12 +176,6 @@ export default function DevelopScreen() {
 
                     <View style={styles.sparkMetaRow}>
                         <Text style={styles.sparkMeta}>SPARK {detailNum} · {timeAgo(idea.createdAt)}</Text>
-                        {!!idea.audioLocalPath && (
-                            <Pressable onPress={toggleAudio} style={styles.listenBtn} hitSlop={8}>
-                                <Ionicons name={isPlaying ? 'stop' : 'play'} size={12} color={Theme.colors.amber} />
-                                <Text style={styles.listenText}>{isPlaying ? 'STOP' : 'LISTEN'}</Text>
-                            </Pressable>
-                        )}
                     </View>
 
                     {editing ? (
@@ -369,8 +346,6 @@ const styles = StyleSheet.create({
     },
     sparkMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     sparkMeta: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: Theme.colors.amber },
-    listenBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    listenText: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1, color: Theme.colors.amber },
 
     bigText: { fontFamily: Theme.fonts.semibold, fontSize: 27, lineHeight: 38, color: Theme.colors.text, letterSpacing: -0.3 },
     bigTextInput: { fontFamily: Theme.fonts.semibold, fontSize: 27, lineHeight: 38, color: Theme.colors.text, letterSpacing: -0.3, padding: 0, textAlignVertical: 'top' },

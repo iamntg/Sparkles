@@ -1,7 +1,6 @@
-import { AudioModule, type AudioRecorder, type AudioPlayer, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, createAudioPlayer } from 'expo-audio';
+import { AudioModule, type AudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 
 let recorder: AudioRecorder | null = null;
-let player: AudioPlayer | null = null;
 
 export async function startRecording(): Promise<void> {
     try {
@@ -51,34 +50,6 @@ export async function stopRecording(): Promise<string> {
     } catch (err) {
         console.error('Failed to stop recording', err);
         recorder = null;
-        throw err;
-    }
-}
-
-
-export async function playAudio(uri: string): Promise<void> {
-    try {
-        if (player) {
-            player.pause();
-        }
-        await setAudioModeAsync({
-            playsInSilentMode: true,
-        });
-        player = createAudioPlayer(uri);
-        player.play();
-    } catch (err) {
-        console.error('Failed to play audio', err);
-        throw err;
-    }
-}
-
-export async function stopAudio(): Promise<void> {
-    try {
-        if (player) {
-            player.pause();
-        }
-    } catch (err) {
-        console.error('Failed to stop playback', err);
         throw err;
     }
 }

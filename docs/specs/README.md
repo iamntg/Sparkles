@@ -96,5 +96,6 @@ non-zero exit code when any feature is missing an artifact, so it can gate CI.
 
 ## Related documents
 
-- [`../../DESIGN.md`](../../DESIGN.md) — the product/visual design specification
-  the constitution's "calm by default" article draws from.
+- [`../../README.md`](../../README.md) — the project overview: features, tech
+  stack, and the design principles the constitution's "calm by default" article
+  draws from.

@@ -28,7 +28,7 @@ Everything lives on your device. Backups go only to *your* Google Drive, encrypt
 ```
 
 > **Simple at first, deep over time.** Sparkles is a *thinking space*, not a
-> productivity dashboard — see the full [design specification](./DESIGN.md).
+> productivity dashboard.
 
 ---
 
@@ -36,8 +36,8 @@ Everything lives on your device. Backups go only to *your* Google Drive, encrypt
 
 | | Feature | Spec |
 | --- | --- | --- |
-| ⚡ | **Capture** — text or voice, transcribed on-device, saved instantly (works offline) | [001](./docs/specs/001-capture-idea/spec.md) |
-| ✍️ | **Develop** — reread, edit, play the recording, grow the thought | [002](./docs/specs/002-develop-idea/spec.md) |
+| ⚡ | **Capture** — jot text offline, or record a voice note transcribed via a self-hosted Whisper service | [001](./docs/specs/001-capture-idea/spec.md) |
+| ✍️ | **Develop** — reread, edit, and grow the thought | [002](./docs/specs/002-develop-idea/spec.md) |
 | 🔗 | **Link** — on-device similarity suggests connections; confirm several at once | [003](./docs/specs/003-linking-ideas/spec.md) |
 | 🌌 | **Constellation** — the home screen: ideas as stars, links as threads, scatter ↔ cluster | [004](./docs/specs/004-constellation-view/spec.md) |
 | 🧠 | **AI Clusters** — group everything into themes (OpenAI or Claude), rate-limited & private | [005](./docs/specs/005-ai-clusters/spec.md) |
@@ -124,8 +124,9 @@ Endpoints: `POST /cluster`, `POST /digest`, `GET /health`.
 
 <br>
 
-Speech-to-text runs locally via [whisper.cpp](https://github.com/ggerganov/whisper.cpp),
-so it ships as a Docker image with the binary + model baked in:
+Speech-to-text runs on your own hardware (no cloud API) via
+[whisper.cpp](https://github.com/ggerganov/whisper.cpp), shipped as a
+self-hosted Docker image with the binary + model baked in:
 
 ```bash
 cd apps/transcription
@@ -237,7 +238,7 @@ sparkles/
 | --- | --- |
 | **App** | Expo SDK 54, React Native 0.81, React 19, Expo Router, TypeScript |
 | **Data** | `expo-sqlite` on device · `idb` (IndexedDB) on web · one repository API over both |
-| **Crypto** | `expo-crypto` — PBKDF2 key derivation, AES-GCM encryption |
+| **Crypto** | `@noble/hashes` PBKDF2-SHA256 key derivation · `@noble/ciphers` AES-256-GCM · `expo-crypto` CSPRNG |
 | **AI** | `openai` + `@anthropic-ai/sdk` behind a swappable provider factory |
 | **Voice** | `expo-audio` capture → whisper.cpp transcription |
 | **Tooling** | pnpm workspaces, Turborepo, Prettier |
