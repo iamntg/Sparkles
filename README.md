@@ -32,7 +32,7 @@ Everything lives on your device. Backups go only to *your* Google Drive, encrypt
 
 <div align="center">
 
-<img src="docs/screenshots-framed/constellation.png" alt="Constellation — ideas as glowing stars"/>
+<img src="docs/screenshots-framed/constellation-dark.png" alt="Constellation — ideas as glowing stars"/>
 
 </div>
 
