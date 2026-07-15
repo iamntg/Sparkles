@@ -30,6 +30,12 @@ Everything lives on your device. Backups go only to *your* Google Drive, encrypt
 > **Simple at first, deep over time.** Sparkles is a *thinking space*, not a
 > productivity dashboard.
 
+<div align="center">
+
+<img src="docs/screenshots-framed/constellation.png" alt="Constellation — ideas as glowing stars"/>
+
+</div>
+
 ---
 
 ## 🌟 What's inside

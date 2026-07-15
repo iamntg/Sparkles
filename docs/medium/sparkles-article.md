@@ -6,9 +6,9 @@
 
 ---
 
-I have a folder in Google Keep called "Ideas."
+Google Keep is where my ideas go to die. No folder, no labels, no system. Just a heap.
 
-It has 400 something notes in it. A hook for a video I still haven't filmed. A plot twist for a story whose main character doesn't have a name yet. A line of dialogue so good I was certain I'd remember the scene it belonged to (reader, I did not). Three thumbnail concepts. A villain's motivation scribbled at 2 a.m. And, for reasons lost to history, a grocery list.
+There are 400 something notes buried in there, in no particular order, tagged with nothing. A hook for a video I still haven't filmed. A plot twist for a story whose main character doesn't have a name yet. A line of dialogue so good I was certain I'd remember the scene it belonged to (reader, I did not). Three thumbnail concepts. A villain's motivation scribbled at 2 a.m. And, for reasons lost to history, a grocery list.
 
 I'm a part time content creator and story writer, which is a polite way of saying I generate way more ideas than I will ever follow through on. And here's the thing nobody warns you about capturing everything: **capture was never my problem.**
 
