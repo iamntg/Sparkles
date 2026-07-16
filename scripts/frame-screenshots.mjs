@@ -20,7 +20,7 @@ const OUT = join(ROOT, "docs/screenshots-framed");
 const CHROME =
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-const SHOTS = ["constellation", "stream", "capture", "develop", "settings"];
+const SHOTS = ["constellation", "stream", "capture", "develop", "settings", "detail"];
 
 // 16:9 canvas in CSS px; rendered at 2x -> 1920x1080.
 const CANVAS_W = 960;

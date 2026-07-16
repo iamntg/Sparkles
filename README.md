@@ -56,9 +56,9 @@ Everything lives on your device. Backups go only to *your* Google Drive, encrypt
 
 <div align="center">
 
-| 🌌 Constellation | 📜 The Stream | ⚡ Capture | ✍️ Develop | ⚙️ Settings |
-|:---:|:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/constellation.png" width="155" alt="Constellation — ideas as glowing stars"/> | <img src="docs/screenshots/stream.png" width="155" alt="The Stream — searchable list of ideas"/> | <img src="docs/screenshots/capture.png" width="155" alt="Capture — frictionless new spark"/> | <img src="docs/screenshots/develop.png" width="155" alt="Develop — grow a single idea"/> | <img src="docs/screenshots/settings.png" width="155" alt="Settings — backup and AI preferences"/> |
+| 🌌 Constellation | 📜 The Stream | ⚡ Capture | ✍️ Develop | Detail | ⚙️ Settings |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/constellation.png" width="120" alt="Constellation — ideas as glowing stars"/> | <img src="docs/screenshots/stream.png" width="120" alt="The Stream — searchable list of ideas"/> | <img src="docs/screenshots/capture.png" width="120" alt="Capture — frictionless new spark"/> | <img src="docs/screenshots/develop.png" width="120" alt="Develop — grow a single idea"/> | <img src="docs/screenshots/detail.png" width="120" alt="Detail — grow a single idea"/> | <img src="docs/screenshots/settings.png" width="120" alt="Settings — backup and AI preferences"/> |
 
 <sub>The home constellation · a searchable Stream of every spark · frictionless capture · developing one idea · encrypted backup & AI preferences</sub>
 

@@ -7,6 +7,7 @@ UI captures used in the root [`README.md`](../../README.md).
 | `constellation.png` | Home constellation (populated) | `/constellation` |
 | `stream.png` | The Stream — searchable idea list | `/inbox` |
 | `capture.png` | New-spark capture | `/add` |
+| `detail.png` | Idea details | `/develop/[id]` |
 | `develop.png` | Develop a single idea | `/develop/[id]` |
 | `settings.png` | Backup & AI preferences | `/settings` |
 
