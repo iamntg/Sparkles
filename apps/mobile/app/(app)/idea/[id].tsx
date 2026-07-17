@@ -1,17 +1,29 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform, KeyboardAvoidingView } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Idea, Link } from '@sparkles/core';
-import { suggestLinks } from '@sparkles/ai';
+import { Idea, Link, ChatTurn, IdeaReview, brightnessFor, brightnessLabel } from '@sparkles/core';
+import { rankRelated } from '@sparkles/ai';
 import { Theme } from '@sparkles/ui';
-import { fetchIdeaById, saveIdeaChanges, fetchAllIdeas, deleteIdea } from '@/services/ideaService';
+import {
+    fetchIdeaById,
+    fetchAllIdeas,
+    deleteIdea,
+    saveIdeaDescription,
+    recordVisit,
+} from '@/services/ideaService';
 import { addLink, fetchLinksForIdea, removeLinksByIdea } from '@/services/linkService';
+import { fetchChatTurns, saveChatTurn, removeChatForIdea } from '@/services/chatService';
+import { reviewIdea, brainstorm, isAiConfigured } from '@/services/aiService';
+import { loadSettings, DEFAULT_SETTINGS, Settings } from '@/services/settingsService';
 import { CosmicBackground } from '@/components/CosmicBackground';
+import { BrainstormChat } from '@/components/BrainstormChat';
+import { AiReviewOverlay } from '@/components/AiReviewOverlay';
 
 const DAY = 86400000;
+const DESC_LONG = 150;
 
 function timeAgo(ts: number): string {
     const diff = Date.now() - ts;
@@ -32,7 +44,7 @@ function shortText(t: string, n = 40) {
     return s.length > n ? s.slice(0, n - 1).trim() + '…' : s || 'Voice note';
 }
 
-export default function DevelopScreen() {
+export default function IdeaDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -41,22 +53,47 @@ export default function DevelopScreen() {
     const [detailNum, setDetailNum] = useState('01');
     const [links, setLinks] = useState<Link[]>([]);
     const [linkedIdeas, setLinkedIdeas] = useState<Idea[]>([]);
-    const [suggestions, setSuggestions] = useState<Idea[]>([]);
+    const [suggestions, setSuggestions] = useState<{ idea: Idea; reason: string }[]>([]);
+    const [descExpanded, setDescExpanded] = useState(false);
 
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState('');
+    // Develop overlay — edits the description, never the spark's own text.
+    const [developOpen, setDevelopOpen] = useState(false);
+    const [developDraft, setDevelopDraft] = useState('');
 
     // Link picker overlay
     const [pickerOpen, setPickerOpen] = useState(false);
     const [pickerOptions, setPickerOptions] = useState<Idea[]>([]);
     const [selected, setSelected] = useState<string[]>([]);
 
+    const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+    // Brainstorm chat
+    const [turns, setTurns] = useState<ChatTurn[]>([]);
+    const [chatDraft, setChatDraft] = useState('');
+    const [chatBusy, setChatBusy] = useState(false);
+    const [chatError, setChatError] = useState<string | null>(null);
+
+    // AI review
+    const [aiOpen, setAiOpen] = useState(false);
+    const [review, setReview] = useState<IdeaReview | null>(null);
+    const [reviewLoading, setReviewLoading] = useState(false);
+    const [reviewError, setReviewError] = useState<string | null>(null);
+    const [echoes, setEchoes] = useState<Idea[]>([]);
+
     const load = useCallback(async () => {
         if (!id) return;
         const [data, all] = await Promise.all([fetchIdeaById(id), fetchAllIdeas()]);
         if (!data) return;
         setIdea(data);
-        setDraft(data.rawText || data.text);
+        setTurns(await fetchChatTurns(id));
+
+        // "Echoes" are related sparks found on device — the AI never sees the cosmos.
+        setEchoes(
+            rankRelated(data, all)
+                .slice(0, 2)
+                .map(r => all.find(i => i.id === r.id))
+                .filter((i): i is Idea => !!i)
+        );
 
         // SPARK number = 1-based position by creation order
         const ordered = [...all].sort((a, b) => a.createdAt - b.createdAt);
@@ -69,44 +106,97 @@ export default function DevelopScreen() {
         setLinkedIdeas(all.filter(i => linkedIds.includes(i.id)));
 
         // "Might connect" — top scored suggestions not already linked
-        const suggestedIds = suggestLinks(data, all);
-        const sugg = suggestedIds
-            .filter(sid => !linkedIds.includes(sid) && sid !== id)
-            .map(sid => all.find(i => i.id === sid))
-            .filter((i): i is Idea => !!i)
-            .slice(0, 3);
-        setSuggestions(sugg);
+        setSuggestions(
+            rankRelated(data, all)
+                .filter(r => !linkedIds.includes(r.id) && r.id !== id)
+                .slice(0, 3)
+                .map(r => ({ idea: all.find(i => i.id === r.id), reason: r.reason }))
+                .filter((s): s is { idea: Idea; reason: string } => !!s.idea)
+        );
     }, [id]);
 
+    // Opening a spark counts as a visit — that's what makes it brighten over time.
     useFocusEffect(
         useCallback(() => {
-            load();
-        }, [load])
+            let cancelled = false;
+            (async () => {
+                if (id) await recordVisit(id);
+                if (cancelled) return;
+                await load();
+                if (!cancelled) setSettings(await loadSettings());
+            })();
+            return () => { cancelled = true; };
+        }, [id, load])
     );
 
-    const linkCount = links.length;
+    const sendChat = async () => {
+        const text = chatDraft.trim();
+        if (!idea || !text || chatBusy) return;
 
-    const brightness = (() => {
-        if (!idea) return 0.3;
-        const ageDays = (Date.now() - idea.createdAt) / DAY;
-        const age = ageDays < 0.05 ? 1 : ageDays < 1 ? 0.8 : ageDays < 7 ? 0.55 : 0.4;
-        const b = (0.3 + linkCount * 0.16) * (0.55 + age * 0.45);
-        return Math.max(0.16, Math.min(1, b));
-    })();
-    const brightLabel = brightness >= 0.75 ? 'GLOWING' : brightness >= 0.5 ? 'STEADY' : brightness >= 0.3 ? 'DRIFTING' : 'FADING';
+        setChatError(null);
+        setChatDraft('');
+        setChatBusy(true);
 
-    const handleDevelop = async () => {
-        if (!idea) return;
-        if (!editing) {
-            setEditing(true);
-            return;
-        }
+        // Show the user's turn immediately; the reply follows.
+        const userTurn = await saveChatTurn(idea.id, 'user', text);
+        const history = [...turns, userTurn];
+        setTurns(history);
+
         try {
-            await saveIdeaChanges({ ...idea, rawText: draft });
-            setEditing(false);
+            const reply = await brainstorm(idea, history.map(t => ({ role: t.role, text: t.text })));
+            if (!reply) throw new Error('The brainstorm partner had nothing to add.');
+            const assistantTurn = await saveChatTurn(idea.id, 'assistant', reply);
+            setTurns(prev => [...prev, assistantTurn]);
+        } catch (e: any) {
+            setChatError(e?.message || 'Could not reach the brainstorm partner.');
+        } finally {
+            setChatBusy(false);
+        }
+    };
+
+    const runReview = async (includePlan: boolean) => {
+        if (!idea) return;
+        setReviewLoading(true);
+        setReviewError(null);
+        try {
+            setReview(await reviewIdea(idea, includePlan));
+        } catch (e: any) {
+            setReviewError(e?.message || 'Could not reach the AI service.');
+        } finally {
+            setReviewLoading(false);
+        }
+    };
+
+    const openAi = () => {
+        setAiOpen(true);
+        // A plan up front only when the user asked for that in settings.
+        if (!review) runReview(settings.autoPlan);
+    };
+
+    const linkCount = links.length;
+    const brightness = idea ? brightnessFor(idea, linkCount) : 0.3;
+    const brightLabel = brightnessLabel(brightness);
+
+    const description = idea?.description || '';
+    const hasDescription = description.length > 0;
+    const descLong = description.length > DESC_LONG;
+    const descCollapsed = descLong && !descExpanded;
+
+    const openDevelop = () => {
+        if (!idea) return;
+        setDevelopDraft(idea.description || '');
+        setDevelopOpen(true);
+    };
+
+    const saveDevelop = async () => {
+        if (!idea) return;
+        try {
+            await saveIdeaDescription(idea.id, developDraft);
+            setDevelopOpen(false);
+            setDescExpanded(false);
             await load();
         } catch {
-            Alert.alert('Error', 'Failed to save changes');
+            Alert.alert('Error', 'Failed to save detail');
         }
     };
 
@@ -114,6 +204,7 @@ export default function DevelopScreen() {
         if (!idea) return;
         const doDelete = async () => {
             await removeLinksByIdea(idea.id);
+            await removeChatForIdea(idea.id);
             await deleteIdea(idea.id);
             router.back();
         };
@@ -178,19 +269,7 @@ export default function DevelopScreen() {
                         <Text style={styles.sparkMeta}>SPARK {detailNum} · {timeAgo(idea.createdAt)}</Text>
                     </View>
 
-                    {editing ? (
-                        <TextInput
-                            value={draft}
-                            onChangeText={setDraft}
-                            multiline
-                            autoFocus
-                            style={styles.bigTextInput}
-                            placeholder="What's on your mind?"
-                            placeholderTextColor={Theme.colors.textFaint}
-                        />
-                    ) : (
-                        <Text style={styles.bigText}>{idea.text || idea.rawText || 'Voice note'}</Text>
-                    )}
+                    <Text style={styles.bigText}>{idea.text || idea.rawText || 'Voice note'}</Text>
 
                     {/* Brightness */}
                     <View style={styles.brightRow}>
@@ -206,13 +285,28 @@ export default function DevelopScreen() {
                     </View>
                     <Text style={styles.brightCaption}>It brightens each time you return — no pressure, just light.</Text>
 
+                    {/* More detail — written in Develop, read here */}
+                    {hasDescription && (
+                        <View style={styles.descCard}>
+                            <Text style={styles.sectionLabel}>MORE DETAIL</Text>
+                            <Text style={styles.descText} numberOfLines={descCollapsed ? 4 : undefined}>
+                                {description}
+                            </Text>
+                            {descLong && (
+                                <Pressable onPress={() => setDescExpanded(v => !v)} hitSlop={8}>
+                                    <Text style={styles.descToggle}>{descExpanded ? 'READ LESS' : 'READ MORE'}</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    )}
+
                     {/* Linked sparks */}
                     {linkedIdeas.length > 0 && (
                         <View style={styles.section}>
                             <Text style={styles.sectionLabel}>LINKED SPARKS · {linkCount}</Text>
                             <View style={styles.chipWrap}>
                                 {linkedIdeas.map(li => (
-                                    <Pressable key={li.id} style={styles.linkedChip} onPress={() => router.push(`/develop/${li.id}`)}>
+                                    <Pressable key={li.id} style={styles.linkedChip} onPress={() => router.push(`/idea/${li.id}`)}>
                                         <View style={styles.lavDot} />
                                         <Text style={styles.linkedChipText} numberOfLines={1}>{shortText(li.text || li.title)}</Text>
                                     </Pressable>
@@ -222,15 +316,15 @@ export default function DevelopScreen() {
                     )}
 
                     {/* Might connect */}
-                    {!editing && suggestions.length > 0 && (
+                    {suggestions.length > 0 && (
                         <View style={styles.section}>
                             <Text style={[styles.sectionLabel, { color: Theme.colors.primary }]}>✦ MIGHT CONNECT</Text>
                             <View style={{ gap: 9 }}>
-                                {suggestions.map(sg => (
+                                {suggestions.map(({ idea: sg, reason }) => (
                                     <View key={sg.id} style={styles.suggestRow}>
-                                        <Pressable style={{ flex: 1, minWidth: 0 }} onPress={() => router.push(`/develop/${sg.id}`)}>
+                                        <Pressable style={{ flex: 1, minWidth: 0 }} onPress={() => router.push(`/idea/${sg.id}`)}>
                                             <Text style={styles.suggestText} numberOfLines={1}>{shortText(sg.text || sg.title, 44)}</Text>
-                                            <Text style={styles.suggestReason}>Shares language with this spark</Text>
+                                            <Text style={styles.suggestReason} numberOfLines={1}>{reason}</Text>
                                         </Pressable>
                                         <Pressable style={styles.linkBtn} onPress={() => linkSuggestion(sg.id)}>
                                             <Ionicons name="link-outline" size={12} color={Theme.colors.background} />
@@ -241,17 +335,44 @@ export default function DevelopScreen() {
                             </View>
                         </View>
                     )}
+
+                    {/* AI review — only offered when it can actually run */}
+                    {settings.aiReview && isAiConfigured() && (
+                        <Pressable style={styles.aiBanner} onPress={openAi}>
+                            <Text style={styles.aiBannerStar}>✦</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.aiBannerTitle}>AI Review ready</Text>
+                                <Text style={styles.aiBannerSub}>Reflections & angles for this spark</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color={Theme.colors.textMuted} />
+                        </Pressable>
+                    )}
+
+                    {isAiConfigured() && (
+                        <BrainstormChat
+                            turns={turns}
+                            draft={chatDraft}
+                            busy={chatBusy}
+                            error={chatError}
+                            onChangeDraft={setChatDraft}
+                            onSend={sendChat}
+                        />
+                    )}
                 </View>
 
                 {/* Bottom actions */}
                 <View style={styles.actions}>
-                    <Pressable style={[styles.action, styles.actionGold]} onPress={handleDevelop}>
-                        <Ionicons name={editing ? 'checkmark' : 'create-outline'} size={20} color={Theme.colors.gold} />
-                        <Text style={[styles.actionLabel, { color: Theme.colors.gold }]}>{editing ? 'SAVE' : 'DEVELOP'}</Text>
+                    <Pressable style={[styles.action, styles.actionGold]} onPress={openDevelop}>
+                        <Ionicons name="create-outline" size={20} color={Theme.colors.gold} />
+                        <Text style={[styles.actionLabel, { color: Theme.colors.gold }]}>
+                            {hasDescription ? 'EDIT DETAIL' : 'DEVELOP'}
+                        </Text>
                     </Pressable>
                     <Pressable style={[styles.action, styles.actionLavender]} onPress={openPicker}>
                         <Ionicons name="link-outline" size={20} color={Theme.colors.primary} />
-                        <Text style={[styles.actionLabel, { color: Theme.colors.primary }]}>LINK</Text>
+                        <Text style={[styles.actionLabel, { color: Theme.colors.primary }]}>
+                            {linkCount ? `LINK · ${linkCount}` : 'LINK'}
+                        </Text>
                     </Pressable>
                     <Pressable style={[styles.action, styles.actionGhost]} onPress={handleDiscard}>
                         <Ionicons name="trash-outline" size={20} color="#d98a8a" />
@@ -260,16 +381,88 @@ export default function DevelopScreen() {
                 </View>
             </ScrollView>
 
+            {/* AI review overlay */}
+            {aiOpen && (
+                <AiReviewOverlay
+                    idea={idea}
+                    review={review}
+                    loading={reviewLoading}
+                    error={reviewError}
+                    echoes={echoes}
+                    autoPlan={settings.autoPlan}
+                    onClose={() => setAiOpen(false)}
+                    onRetry={() => runReview(settings.autoPlan)}
+                    onGeneratePlan={() => runReview(true)}
+                    onOpenEcho={eid => {
+                        setAiOpen(false);
+                        router.push(`/idea/${eid}`);
+                    }}
+                />
+            )}
+
+            {/* Develop overlay */}
+            {developOpen && (
+                <View style={[StyleSheet.absoluteFill, styles.overlay]}>
+                    <CosmicBackground starCount={40} amberGlow={false} />
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        style={{ flex: 1, paddingTop: insets.top + 16 }}
+                    >
+                        <View style={styles.overlayHeader}>
+                            <Pressable onPress={() => setDevelopOpen(false)} style={styles.iconBtn}>
+                                <Ionicons name="close" size={16} color="#cfcadd" />
+                            </Pressable>
+                            <Text style={[styles.overlayTitle, { color: Theme.colors.gold }]}>DEVELOP</Text>
+                            <View style={{ width: 38 }} />
+                        </View>
+
+                        <ScrollView
+                            contentContainerStyle={{ paddingHorizontal: 26, paddingTop: 20, paddingBottom: 12 }}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            <View style={styles.developSpark}>
+                                <View style={styles.smallGoldDot} />
+                                <Text style={styles.developSparkText}>{idea.text || idea.rawText || 'Voice note'}</Text>
+                            </View>
+
+                            <Text style={[styles.sectionLabel, { marginTop: 26 }]}>MORE DETAIL</Text>
+                            <TextInput
+                                value={developDraft}
+                                onChangeText={setDevelopDraft}
+                                multiline
+                                autoFocus
+                                style={styles.developInput}
+                                placeholder="Flesh it out — context, references, where it could go, the smallest next step…"
+                                placeholderTextColor={Theme.colors.textFaint}
+                            />
+                        </ScrollView>
+
+                        <View style={{ paddingHorizontal: 26, paddingBottom: insets.bottom + 24, paddingTop: 12 }}>
+                            <Pressable onPress={saveDevelop} style={styles.primaryBtn}>
+                                <LinearGradient
+                                    colors={[Theme.colors.gold, Theme.colors.amber]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={styles.primaryBtnGrad}
+                                >
+                                    <Text style={styles.primaryBtnText}>Save detail</Text>
+                                </LinearGradient>
+                            </Pressable>
+                        </View>
+                    </KeyboardAvoidingView>
+                </View>
+            )}
+
             {/* Link picker overlay */}
             {pickerOpen && (
-                <View style={[StyleSheet.absoluteFill, styles.pickerOverlay]}>
+                <View style={[StyleSheet.absoluteFill, styles.overlay]}>
                     <CosmicBackground starCount={40} amberGlow={false} />
                     <View style={{ flex: 1, paddingTop: insets.top + 16 }}>
-                        <View style={styles.pickerHeader}>
+                        <View style={styles.overlayHeader}>
                             <Pressable onPress={() => setPickerOpen(false)} style={styles.iconBtn}>
                                 <Ionicons name="close" size={16} color="#cfcadd" />
                             </Pressable>
-                            <Text style={styles.pickerTitle}>LINK SPARKS</Text>
+                            <Text style={styles.overlayTitle}>LINK SPARKS</Text>
                             <View style={{ width: 38 }} />
                         </View>
                         <Text style={styles.pickerSub}>Connect this spark to others in your cosmos.</Text>
@@ -300,14 +493,14 @@ export default function DevelopScreen() {
                         </ScrollView>
 
                         <View style={{ paddingHorizontal: 26, paddingBottom: insets.bottom + 24, paddingTop: 12 }}>
-                            <Pressable onPress={saveLinks} style={styles.saveLinksBtn}>
+                            <Pressable onPress={saveLinks} style={styles.primaryBtn}>
                                 <LinearGradient
                                     colors={[Theme.colors.primary, Theme.colors.primaryDeep]}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 1 }}
-                                    style={styles.saveLinksGrad}
+                                    style={styles.primaryBtnGrad}
                                 >
-                                    <Text style={styles.saveLinksText}>
+                                    <Text style={styles.primaryBtnText}>
                                         {selected.length > 0 ? `LINK ${selected.length} SPARK${selected.length > 1 ? 'S' : ''}` : 'DONE'}
                                     </Text>
                                 </LinearGradient>
@@ -348,7 +541,6 @@ const styles = StyleSheet.create({
     sparkMeta: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: Theme.colors.amber },
 
     bigText: { fontFamily: Theme.fonts.semibold, fontSize: 27, lineHeight: 38, color: Theme.colors.text, letterSpacing: -0.3 },
-    bigTextInput: { fontFamily: Theme.fonts.semibold, fontSize: 27, lineHeight: 38, color: Theme.colors.text, letterSpacing: -0.3, padding: 0, textAlignVertical: 'top' },
 
     brightRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 24 },
     brightTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.07)', overflow: 'hidden' },
@@ -358,6 +550,18 @@ const styles = StyleSheet.create({
 
     section: { marginTop: 26 },
     sectionLabel: { fontFamily: Theme.fonts.mono, fontSize: 10, letterSpacing: 2, color: Theme.colors.label, marginBottom: 12 },
+
+    descCard: {
+        marginTop: 26,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.035)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)',
+    },
+    descText: { fontFamily: Theme.fonts.regular, fontSize: 14, lineHeight: 22, color: Theme.colors.textSecondary },
+    descToggle: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1.4, color: Theme.colors.gold, marginTop: 10 },
+
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     linkedChip: {
         flexDirection: 'row',
@@ -409,6 +613,21 @@ const styles = StyleSheet.create({
     },
     linkBtnText: { fontFamily: Theme.fonts.monoBold, fontSize: 10, letterSpacing: 1, color: Theme.colors.background },
 
+    aiBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 13,
+        marginTop: 26,
+        padding: 15,
+        borderRadius: 16,
+        backgroundColor: 'rgba(176,130,255,0.09)',
+        borderWidth: 1,
+        borderColor: 'rgba(176,130,255,0.24)',
+    },
+    aiBannerStar: { fontFamily: Theme.fonts.regular, fontSize: 17, color: Theme.colors.gold },
+    aiBannerTitle: { fontFamily: Theme.fonts.semibold, fontSize: 14, color: Theme.colors.text },
+    aiBannerSub: { fontFamily: Theme.fonts.regular, fontSize: 12, color: Theme.colors.textMuted, marginTop: 3 },
+
     actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
     action: { flex: 1, alignItems: 'center', gap: 7, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
     actionGold: { backgroundColor: 'rgba(255,215,0,0.1)', borderColor: 'rgba(255,215,0,0.25)' },
@@ -416,10 +635,52 @@ const styles = StyleSheet.create({
     actionGhost: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)' },
     actionLabel: { fontFamily: Theme.fonts.mono, fontSize: 9, letterSpacing: 1 },
 
+    // Shared overlay chrome (Develop + Link picker)
+    overlay: { backgroundColor: Theme.colors.background, zIndex: 75 },
+    overlayHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 26 },
+    overlayTitle: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 3, color: Theme.colors.primary },
+    primaryBtn: { borderRadius: 26, overflow: 'hidden', ...Theme.shadows.primary },
+    primaryBtnGrad: { paddingVertical: 16, alignItems: 'center', borderRadius: 26 },
+    primaryBtnText: { fontFamily: Theme.fonts.semibold, fontSize: 15, letterSpacing: 1, color: Theme.colors.background },
+
+    // Develop
+    developSpark: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,215,0,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,215,0,0.18)',
+    },
+    smallGoldDot: {
+        width: 9,
+        height: 9,
+        borderRadius: 5,
+        marginTop: 5,
+        backgroundColor: Theme.colors.gold,
+        shadowColor: Theme.colors.gold,
+        shadowOpacity: 0.6,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 0 },
+    },
+    developSparkText: { flex: 1, fontFamily: Theme.fonts.medium, fontSize: 15, lineHeight: 22, color: Theme.colors.text },
+    developInput: {
+        minHeight: 200,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        fontFamily: Theme.fonts.regular,
+        fontSize: 15,
+        lineHeight: 23,
+        color: Theme.colors.text,
+        textAlignVertical: 'top',
+    },
+
     // Link picker
-    pickerOverlay: { backgroundColor: Theme.colors.background, zIndex: 75 },
-    pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 26 },
-    pickerTitle: { fontFamily: Theme.fonts.mono, fontSize: 11, letterSpacing: 3, color: Theme.colors.primary },
     pickerSub: { fontFamily: Theme.fonts.regular, fontSize: 13, color: Theme.colors.textMuted, marginTop: 16, marginBottom: 8, paddingHorizontal: 26 },
     pickerEmpty: { fontFamily: Theme.fonts.regular, fontSize: 14, color: Theme.colors.textMuted, textAlign: 'center', paddingVertical: 40 },
     pickerRow: {
@@ -447,7 +708,4 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     checkOn: { backgroundColor: Theme.colors.primary, borderColor: Theme.colors.primary },
-    saveLinksBtn: { borderRadius: 26, overflow: 'hidden', ...Theme.shadows.primary },
-    saveLinksGrad: { paddingVertical: 16, alignItems: 'center', borderRadius: 26 },
-    saveLinksText: { fontFamily: Theme.fonts.semibold, fontSize: 15, letterSpacing: 1, color: Theme.colors.background },
 });

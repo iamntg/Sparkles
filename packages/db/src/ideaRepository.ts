@@ -6,13 +6,15 @@ export async function createIdea(idea: Idea): Promise<void> {
   await db.runAsync(
     `INSERT INTO ideas (
       id, createdAt, updatedAt, sourceType, text, title, status,
-      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText,
+      description, visits
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       idea.id, idea.createdAt, idea.updatedAt, idea.sourceType, idea.text, idea.title, idea.status,
       idea.transcriptStatus || null, idea.audioLocalPath || null, idea.constellationX || null,
       idea.constellationY || null, idea.constellationSeed || null, idea.deletedAt || null,
-      idea.rawText || null
+      idea.rawText || null,
+      idea.description || null, idea.visits || 0
     ]
   );
 }
@@ -39,13 +41,13 @@ export async function updateIdea(idea: Idea): Promise<void> {
     `UPDATE ideas SET
       updatedAt = ?, text = ?, title = ?, status = ?, transcriptStatus = ?,
       audioLocalPath = ?, constellationX = ?, constellationY = ?, constellationSeed = ?, deletedAt = ?,
-      rawText = ?
+      rawText = ?, description = ?, visits = ?
      WHERE id = ?`,
     [
       idea.updatedAt, idea.text, idea.title, idea.status, idea.transcriptStatus || null,
       idea.audioLocalPath || null, idea.constellationX || null, idea.constellationY || null,
       idea.constellationSeed || null, idea.deletedAt || null,
-      idea.rawText || null,
+      idea.rawText || null, idea.description || null, idea.visits || 0,
       idea.id
     ]
   );
@@ -56,13 +58,15 @@ export async function upsertIdea(idea: Idea): Promise<void> {
   await db.runAsync(
     `INSERT OR REPLACE INTO ideas (
       id, createdAt, updatedAt, sourceType, text, title, status,
-      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      transcriptStatus, audioLocalPath, constellationX, constellationY, constellationSeed, deletedAt, rawText,
+      description, visits
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       idea.id, idea.createdAt, idea.updatedAt, idea.sourceType, idea.text, idea.title, idea.status,
       idea.transcriptStatus || null, idea.audioLocalPath || null, idea.constellationX || null,
       idea.constellationY || null, idea.constellationSeed || null, idea.deletedAt || null,
-      idea.rawText || null
+      idea.rawText || null,
+      idea.description || null, idea.visits || 0
     ]
   );
 }

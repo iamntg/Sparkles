@@ -21,7 +21,9 @@ export async function runMigrations() {
       constellationY REAL,
       constellationSeed INTEGER,
       deletedAt INTEGER,
-      rawText TEXT
+      rawText TEXT,
+      description TEXT,
+      visits INTEGER
     );
 
     CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status);
@@ -45,11 +47,29 @@ export async function runMigrations() {
       scope TEXT,
       resultJson TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS chat_turns (
+      id TEXT PRIMARY KEY,
+      ideaId TEXT,
+      role TEXT,
+      text TEXT,
+      createdAt INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_turns_idea ON chat_turns(ideaId);
   `);
 
-  try {
-    await db.execAsync(`ALTER TABLE ideas ADD COLUMN rawText TEXT;`);
-  } catch (e) {
-    // Column might already exist
+  // Columns added after the first release; each may already exist on older installs.
+  const addedColumns = [
+    `ALTER TABLE ideas ADD COLUMN rawText TEXT;`,
+    `ALTER TABLE ideas ADD COLUMN description TEXT;`,
+    `ALTER TABLE ideas ADD COLUMN visits INTEGER;`,
+  ];
+  for (const sql of addedColumns) {
+    try {
+      await db.execAsync(sql);
+    } catch (e) {
+      // Column already exists
+    }
   }
 }

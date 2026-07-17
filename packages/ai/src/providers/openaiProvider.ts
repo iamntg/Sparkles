@@ -1,6 +1,12 @@
 import OpenAI from 'openai';
-import { AIProvider, ClusterResult, DailyDigestResult } from '../types';
-import { CLUSTERING_PROMPT, SUMMARIZATION_PROMPT, DAILY_DIGEST_PROMPT } from '../prompts';
+import { AIProvider, ClusterResult, DailyDigestResult, ReviewInput, IdeaReview, ChatMessage } from '../types';
+import {
+  CLUSTERING_PROMPT,
+  SUMMARIZATION_PROMPT,
+  DAILY_DIGEST_PROMPT,
+  buildReviewPrompt,
+  buildBrainstormPrompt,
+} from '../prompts';
 
 export class OpenAIProvider implements AIProvider {
   private openai: OpenAI;
@@ -100,5 +106,48 @@ export class OpenAIProvider implements AIProvider {
     } catch (error) {
       throw new Error('Failed to parse OpenAI Daily Digest response as JSON');
     }
+  }
+
+  async reviewIdea(idea: ReviewInput, includePlan: boolean): Promise<IdeaReview> {
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: buildReviewPrompt(includePlan) },
+        { role: 'user', content: JSON.stringify(idea) },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('No content returned from OpenAI');
+    }
+
+    try {
+      return JSON.parse(content) as IdeaReview;
+    } catch (error) {
+      throw new Error('Failed to parse OpenAI idea review response as JSON');
+    }
+  }
+
+  async brainstorm(idea: ReviewInput, history: ChatMessage[]): Promise<string> {
+    if (!history.length) {
+      return '';
+    }
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: buildBrainstormPrompt(idea.text, idea.description) },
+        ...history.map(m => ({
+          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+          content: m.text,
+        })),
+      ],
+      temperature: 0.8,
+    });
+
+    return (response.choices[0].message.content || '').trim();
   }
 }

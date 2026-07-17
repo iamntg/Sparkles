@@ -4,7 +4,9 @@ let _db: IDBPDatabase | null = null;
 
 export async function getDb(): Promise<IDBPDatabase> {
   if (!_db) {
-    _db = await openDB('sparkles', 1, {
+    // v2 added the chat_turns store. Bump on every new store — the upgrade
+    // callback only runs when the version increases.
+    _db = await openDB('sparkles', 2, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('ideas')) {
           const ideaStore = db.createObjectStore('ideas', { keyPath: 'id' });
@@ -20,6 +22,11 @@ export async function getDb(): Promise<IDBPDatabase> {
 
         if (!db.objectStoreNames.contains('review_sessions')) {
           db.createObjectStore('review_sessions', { keyPath: 'id' });
+        }
+
+        if (!db.objectStoreNames.contains('chat_turns')) {
+          const chatStore = db.createObjectStore('chat_turns', { keyPath: 'id' });
+          chatStore.createIndex('idx_chat_turns_idea', 'ideaId');
         }
       },
     });

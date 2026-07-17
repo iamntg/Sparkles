@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import clusterRoutes from './routes/cluster';
 import digestRoutes from './routes/digest';
+import reviewRoutes from './routes/review';
+import brainstormRoutes from './routes/brainstorm';
 
 dotenv.config();
 
@@ -15,6 +17,8 @@ app.use(express.json());
 // Routes
 app.use('/cluster', clusterRoutes);
 app.use('/digest', digestRoutes);
+app.use('/review', reviewRoutes);
+app.use('/brainstorm', brainstormRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', provider: process.env.AI_PROVIDER || 'openai' });

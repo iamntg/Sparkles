@@ -158,7 +158,7 @@ export default function InboxScreen() {
                     const count = linkCounts[item.id] || 0;
                     const body = item.text || item.title || 'Empty spark';
                     return (
-                        <Pressable style={styles.item} onPress={() => router.push(`/develop/${item.id}`)}>
+                        <Pressable style={styles.item} onPress={() => router.push(`/idea/${item.id}`)}>
                             <View style={styles.itemDot} />
                             <View style={styles.itemBody}>
                                 <Text style={styles.itemText} numberOfLines={2}>{body}</Text>

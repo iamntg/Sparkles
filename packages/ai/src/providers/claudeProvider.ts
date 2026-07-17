@@ -1,6 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AIProvider, ClusterResult, DailyDigestResult } from '../types';
-import { CLUSTERING_PROMPT, SUMMARIZATION_PROMPT, DAILY_DIGEST_PROMPT } from '../prompts';
+import { AIProvider, ClusterResult, DailyDigestResult, ReviewInput, IdeaReview, ChatMessage } from '../types';
+import {
+  CLUSTERING_PROMPT,
+  SUMMARIZATION_PROMPT,
+  DAILY_DIGEST_PROMPT,
+  buildReviewPrompt,
+  buildBrainstormPrompt,
+} from '../prompts';
 
 function parseJsonFromText(text: string): any {
   try {
@@ -97,5 +103,39 @@ export class ClaudeProvider implements AIProvider {
     } catch {
       throw new Error('Failed to parse daily digest response as JSON');
     }
+  }
+
+  async reviewIdea(idea: ReviewInput, includePlan: boolean): Promise<IdeaReview> {
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 1024,
+      system: buildReviewPrompt(includePlan),
+      messages: [{ role: 'user', content: JSON.stringify(idea) }],
+    });
+
+    const text = this.getTextContent(response);
+    try {
+      return parseJsonFromText(text) as IdeaReview;
+    } catch {
+      throw new Error('Failed to parse idea review response as JSON');
+    }
+  }
+
+  async brainstorm(idea: ReviewInput, history: ChatMessage[]): Promise<string> {
+    if (!history.length) {
+      return '';
+    }
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 400,
+      system: buildBrainstormPrompt(idea.text, idea.description),
+      messages: history.map(m => ({
+        role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+        content: m.text,
+      })),
+    });
+
+    return this.getTextContent(response).trim();
   }
 }

@@ -1,3 +1,69 @@
+/**
+ * Sparkles is a thinking space, not a productivity dashboard — a review should
+ * open the idea up, not grade it. Hence: a reflection, then questions.
+ */
+export const REVIEW_PROMPT = `
+You are part of Sparkles, a calm idea-capture app where a captured thought is called a "spark".
+The user has captured a spark and wants help growing it.
+
+---
+TASK:
+1. REFLECTION: One warm, perceptive observation about what's underneath this spark — 1 to 2 sentences. Notice what drew them to it. This is not a critique, a compliment, or a summary of what they wrote back at them.
+2. ANGLES: Exactly 3 short questions that push the idea somewhere new. Each under 90 characters. Prefer questions that open a direction over questions that ask for definitions.
+{{planTask}}
+---
+TONE:
+- Calm, plain, and specific to THIS spark. Never generic advice that would fit any idea.
+- No preamble, no praise, no exclamation marks, no emoji.
+- Address the user as "you".
+
+---
+STRICT RULES:
+- Return ONLY valid JSON. No markdown formatting, no explanation.
+- Never invent facts about the user or the spark that aren't in what they wrote.
+
+---
+OUTPUT FORMAT (STRICT JSON):
+{{outputFormat}}
+`;
+
+const REVIEW_PLAN_TASK = `3. PLAN: Exactly 3 concrete steps, smallest first. Each under 100 characters, each an action they could actually start. No step should assume a budget, a team, or a deadline.
+`;
+
+const REVIEW_FORMAT_BASE = `{
+  "reflection": "One or two sentences.",
+  "angles": ["Question one?", "Question two?", "Question three?"]
+}`;
+
+const REVIEW_FORMAT_WITH_PLAN = `{
+  "reflection": "One or two sentences.",
+  "angles": ["Question one?", "Question two?", "Question three?"],
+  "plan": [
+    { "n": "1", "text": "First small step." },
+    { "n": "2", "text": "Second step." },
+    { "n": "3", "text": "Third step." }
+  ]
+}`;
+
+export function buildReviewPrompt(includePlan: boolean): string {
+  return REVIEW_PROMPT
+    .replace('{{planTask}}', includePlan ? REVIEW_PLAN_TASK : '')
+    .replace('{{outputFormat}}', includePlan ? REVIEW_FORMAT_WITH_PLAN : REVIEW_FORMAT_BASE);
+}
+
+/** The brainstorm chat replies in prose — no JSON, no lists. */
+export function buildBrainstormPrompt(text: string, description?: string): string {
+  return [
+    'You are a warm, sharp brainstorming partner inside Sparkles, a calm idea-capture app where thoughts are "sparks".',
+    `The user is developing this captured spark: "${text}"`,
+    description ? `Their notes so far: "${description}"` : '',
+    'Help them grow it. Keep replies concise (2-4 sentences), concrete, and encouraging — offer angles, questions, or a small next step.',
+    'No preamble, no bullet lists, no markdown headings. Write plain prose.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 export const CLUSTERING_PROMPT = `
 You are an AI that organizes user-generated ideas into meaningful clusters.
 Each idea may include:

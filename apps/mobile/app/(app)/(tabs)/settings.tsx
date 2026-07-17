@@ -8,6 +8,7 @@ import { Theme } from '@sparkles/ui';
 import { CosmicBackground } from '@/components/CosmicBackground';
 import { googleAuthService } from '@/services/googleAuthService';
 import { backupService } from '@/services/backupService';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, Settings } from '@/services/settingsService';
 
 function Toggle({ value, disabled, onToggle }: { value: boolean; disabled?: boolean; onToggle?: () => void }) {
     return (
@@ -30,7 +31,7 @@ function Toggle({ value, disabled, onToggle }: { value: boolean; disabled?: bool
     );
 }
 
-type PrefKey = 'aiReview' | 'autoPlan' | 'digest';
+type PrefKey = keyof Settings;
 
 const PREFERENCES: { key: PrefKey; label: string; desc: string }[] = [
     { key: 'aiReview', label: 'AI Review', desc: 'Let Sparkles refine and critique each spark' },
@@ -42,12 +43,18 @@ export default function SettingsScreen() {
     const insets = useSafeAreaInsets();
     const [authenticated, setAuthenticated] = useState(googleAuthService.isAuthenticated());
     const [busy, setBusy] = useState(false);
-    const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>({ aiReview: true, autoPlan: false, digest: true });
-    const togglePref = (key: PrefKey) => setPrefs(p => ({ ...p, [key]: !p[key] }));
+    const [prefs, setPrefs] = useState<Settings>(DEFAULT_SETTINGS);
+
+    const togglePref = (key: PrefKey) => {
+        const next = { ...prefs, [key]: !prefs[key] };
+        setPrefs(next);
+        saveSettings(next);
+    };
 
     useFocusEffect(
         useCallback(() => {
             setAuthenticated(googleAuthService.isAuthenticated());
+            loadSettings().then(setPrefs);
         }, [])
     );
 

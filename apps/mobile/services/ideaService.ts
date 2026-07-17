@@ -15,6 +15,7 @@ export async function saveNewIdea(text: string, opts?: { title?: string; sourceT
         rawText: trimmed,
         title: opts?.title || '',
         status: IdeaStatus.DRAFT,
+        visits: 0,
         constellationX: Math.random() * 1000,
         constellationY: Math.random() * 1000,
         constellationSeed: Math.random(),
@@ -34,13 +35,32 @@ export async function fetchIdeaById(id: string): Promise<Idea | null> {
     return getIdea(id);
 }
 
-export async function saveIdeaChanges(idea: Idea): Promise<void> {
-    idea.updatedAt = Date.now();
-    const next = idea.rawText ?? idea.text;
-    idea.text = next;
-    idea.rawText = next;
+/**
+ * Save the longer-form detail written in Develop. The spark's own text is left
+ * alone — Develop grows a thought, it doesn't rewrite it.
+ */
+export async function saveIdeaDescription(id: string, description: string): Promise<Idea | null> {
+    const idea = await getIdea(id);
+    if (!idea) return null;
+    const next: Idea = {
+        ...idea,
+        description: description.trim() || undefined,
+        status: description.trim() ? IdeaStatus.DEVELOPED : idea.status,
+        updatedAt: Date.now(),
+    };
+    await updateIdea(next);
+    return next;
+}
 
-    await updateIdea(idea);
+/**
+ * Count a visit to a spark. Brightness reads this, so returning to an idea is
+ * what makes it glow. Deliberately does not touch updatedAt: reading a spark
+ * shouldn't reorder the Stream.
+ */
+export async function recordVisit(id: string): Promise<void> {
+    const idea = await getIdea(id);
+    if (!idea) return;
+    await updateIdea({ ...idea, visits: (idea.visits || 0) + 1 });
 }
 
 export async function deleteIdea(id: string): Promise<void> {

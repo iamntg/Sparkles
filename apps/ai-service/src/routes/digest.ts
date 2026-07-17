@@ -1,33 +1,13 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import { Router, Request, Response } from 'express';
 import { aiService } from '../services/aiService';
+import { requireUserId, perUserRateLimiter } from '../middleware/userRateLimit';
 
 const router = Router();
 
-// Rate limiter configuration: 10 requests per 24 hours per user
-const digestRateLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: parseInt(process.env.RATE_LIMIT_PER_DAY || '10', 10), // Limit each user to 10 requests per 24 hours
+const digestRateLimiter = perUserRateLimiter({
+  max: parseInt(process.env.RATE_LIMIT_PER_DAY || '10', 10),
   message: { error: 'Too many daily digest requests. Please try again tomorrow.' },
-  standardHeaders: true, // Return rate limit info in the headers
-  legacyHeaders: false, // Disable legacy headers
-  keyGenerator: (req: Request) => {
-    const userId = req.headers['x-user-id'];
-    if (!userId || typeof userId !== 'string') {
-      return 'anonymous';
-    }
-    return userId;
-  },
 });
-
-// Middleware to ensure user ID is present
-const requireUserId = (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.headers['x-user-id'];
-  if (!userId || typeof userId !== 'string') {
-    return res.status(401).json({ error: 'Unauthorized: User ID is required to use the AI service.' });
-  }
-  next();
-};
 
 router.post('/', requireUserId, digestRateLimiter, async (req: Request, res: Response) => {
   try {
